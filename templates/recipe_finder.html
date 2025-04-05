@@ -6,7 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dish Scraper - Recipe Finder</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
 </head>
 
 <body class="bg-gray-50 font-sans">
@@ -31,12 +32,14 @@
                 <div class="bg-white rounded-lg shadow-xl overflow-hidden">
                     <div class="p-8">
                         <h2 class="text-3xl font-bold text-gray-900">Find Recipes</h2>
-                        <p class="mt-4 text-lg text-gray-600">Find the perfect recipe based on ingredients you have at hand.</p>
+                        <p class="mt-4 text-lg text-gray-600">Find the perfect recipe based on ingredients you have at
+                            hand.</p>
 
                         <form action="/get_recipes" method="post" class="mt-8 space-y-6">
                             <!-- Ingredients Field -->
                             <div class="relative">
-                                <label for="ingredients" id="search" class="block text-sm font-medium text-gray-700">Enter Your Ingredients</label>
+                                <label for="ingredients" id="search"
+                                    class="block text-sm font-medium text-gray-700">Enter Your Ingredients</label>
                                 <div class="mt-1">
                                     <input type="text" id="ingredients" name="ingredients"
                                         class="shadow-sm focus:ring-gray-500 focus:border-gray-500 block w-full sm:text-sm border-gray-300 rounded-md"
@@ -44,35 +47,83 @@
                                 </div>
                             </div>
 
-                            <!-- Dietary Restrictions Dropdown -->
+                            <!-- Dietary Restrictions Checkboxes -->
                             <div class="relative">
-                                <label for="dietary_restrictions" class="block text-sm font-medium text-gray-700">Dietary Restrictions</label>
-                                <select name="dietary_restrictions" id="dietary_restrictions"
-                                    class="shadow-sm focus:ring-gray-500 focus:border-gray-500 block w-full sm:text-sm border-gray-300 rounded-md">
-                                    <option value="">Select Dietary Restriction</option>
-                                    <option value="vegetarian">Vegetarian</option>
-                                    <option value="vegan">Vegan</option>
-                                    <option value="glutenFree">Gluten Free</option>
-                                    <option value="paleo">Paleo</option>
-                                    <option value="lowFodmap">Low FODMAP</option>
-                                    <option value="ketogenic">Ketogenic</option>
-                                    <option value="dairyFree">Dairy Free</option>
-                                </select>
+                                <label class="block text-sm font-medium text-gray-700">Dietary Restrictions</label>
+                                <div class="mt-2 space-y-2 border-b border-gray-300 pb-4">
+                                    <label class="inline-flex items-center border p-2 rounded-lg">
+                                        <input type="checkbox" name="dietary_restrictions" value="vegetarian"
+                                            class="form-checkbox text-gray-600" />
+                                        <span class="ml-2 text-gray-700">Vegetarian</span>
+                                    </label>
+                                    <label class="inline-flex items-center border p-2 rounded-lg">
+                                        <input type="checkbox" name="dietary_restrictions" value="vegan"
+                                            class="form-checkbox text-gray-600" />
+                                        <span class="ml-2 text-gray-700">Vegan</span>
+                                    </label>
+                                    <label class="inline-flex items-center border p-2 rounded-lg">
+                                        <input type="checkbox" name="dietary_restrictions" value="glutenFree"
+                                            class="form-checkbox text-gray-600" />
+                                        <span class="ml-2 text-gray-700">Gluten Free</span>
+                                    </label>
+                                    <label class="inline-flex items-center border p-2 rounded-lg">
+                                        <input type="checkbox" name="dietary_restrictions" value="paleo"
+                                            class="form-checkbox text-gray-600" />
+                                        <span class="ml-2 text-gray-700">Paleo</span>
+                                    </label>
+                                    <label class="inline-flex items-center border p-2 rounded-lg">
+                                        <input type="checkbox" name="dietary_restrictions" value="lowFodmap"
+                                            class="form-checkbox text-gray-600" />
+                                        <span class="ml-2 text-gray-700">Low FODMAP</span>
+                                    </label>
+                                    <label class="inline-flex items-center border p-2 rounded-lg">
+                                        <input type="checkbox" name="dietary_restrictions" value="ketogenic"
+                                            class="form-checkbox text-gray-600" />
+                                        <span class="ml-2 text-gray-700">Ketogenic</span>
+                                    </label>
+                                    <label class="inline-flex items-center border p-2 rounded-lg">
+                                        <input type="checkbox" name="dietary_restrictions" value="dairyFree"
+                                            class="form-checkbox text-gray-600" />
+                                        <span class="ml-2 text-gray-700">Dairy Free</span>
+                                    </label>
+                                </div>
                             </div>
 
-                            <!-- Health Conditions Dropdown -->
-                            <div class="relative">
-                                <label for="health_conditions" class="block text-sm font-medium text-gray-700">Health Conditions</label>
-                                <select name="health_conditions" id="health_conditions"
-                                    class="shadow-sm focus:ring-gray-500 focus:border-gray-500 block w-full sm:text-sm border-gray-300 rounded-md">
-                                    <option value="">Select Health Condition</option>
-                                    <option value="heartHealthy">Heart Healthy</option>
-                                    <option value="diabetic">Diabetic</option>
-                                    <option value="lowSugar">Low Sugar</option>
-                                    <option value="lowCarb">Low Carb</option>
-                                    <option value="highProtein">High Protein</option>
-                                    <option value="weightLoss">Weight Loss</option>
-                                </select>
+                            <!-- Health Conditions Checkboxes -->
+                            <div class="relative mt-6">
+                                <label class="block text-sm font-medium text-gray-700">Health Conditions</label>
+                                <div class="mt-2 space-y-2">
+                                    <label class="inline-flex items-center border p-2 rounded-lg">
+                                        <input type="checkbox" name="health_conditions" value="heartHealthy"
+                                            class="form-checkbox text-gray-600" />
+                                        <span class="ml-2 text-gray-700">Heart Healthy</span>
+                                    </label>
+                                    <label class="inline-flex items-center border p-2 rounded-lg">
+                                        <input type="checkbox" name="health_conditions" value="diabetic"
+                                            class="form-checkbox text-gray-600" />
+                                        <span class="ml-2 text-gray-700">Diabetic</span>
+                                    </label>
+                                    <label class="inline-flex items-center border p-2 rounded-lg">
+                                        <input type="checkbox" name="health_conditions" value="lowSugar"
+                                            class="form-checkbox text-gray-600" />
+                                        <span class="ml-2 text-gray-700">Low Sugar</span>
+                                    </label>
+                                    <label class="inline-flex items-center border p-2 rounded-lg">
+                                        <input type="checkbox" name="health_conditions" value="lowCarb"
+                                            class="form-checkbox text-gray-600" />
+                                        <span class="ml-2 text-gray-700">Low Carb</span>
+                                    </label>
+                                    <label class="inline-flex items-center border p-2 rounded-lg">
+                                        <input type="checkbox" name="health_conditions" value="highProtein"
+                                            class="form-checkbox text-gray-600" />
+                                        <span class="ml-2 text-gray-700">High Protein</span>
+                                    </label>
+                                    <label class="inline-flex items-center border p-2 rounded-lg">
+                                        <input type="checkbox" name="health_conditions" value="weightLoss"
+                                            class="form-checkbox text-gray-600" />
+                                        <span class="ml-2 text-gray-700">Weight Loss</span>
+                                    </label>
+                                </div>
                             </div>
 
                             <!-- Submit Button -->
@@ -90,16 +141,19 @@
                             <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {% for recipe in results %}
                                 <div class="bg-white rounded-lg shadow-md overflow-hidden">
-                                    <img src="{{ recipe.image }}" alt="{{ recipe.name }}" class="w-full h-48 object-cover">
+                                    <img src="{{ recipe.image }}" alt="{{ recipe.name }}"
+                                        class="w-full h-48 object-cover">
                                     <div class="p-4">
                                         <p class="text-xl font-semibold text-gray-800">{{ recipe.name }}</p>
-                                        <button data-id="{{ recipe.id }}" onclick="openModal(this)" class="mt-2 text-blue-500">View Full Recipe</button>
+                                        <button data-id="{{ recipe.id }}" onclick="openModal(this)"
+                                            class="mt-2 text-blue-500">View Full Recipe</button>
                                     </div>
                                 </div>
                                 {% endfor %}
                             </div>
                             {% else %}
-                            <p class="text-lg text-gray-600">No recipes found. Try searching with different ingredients!</p>
+                            <p class="text-lg text-gray-600">No recipes found. Try searching with different ingredients!
+                            </p>
                             {% endif %}
                         </div>
                     </div>
@@ -111,7 +165,8 @@
     <!-- Recipe Modal -->
     <div id="recipeModal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
         <div class="bg-white rounded-lg w-4/5 max-w-lg p-6 max-h-[80vh] overflow-y-auto relative">
-            <span class="close absolute top-2 right-2 text-gray-600 text-2xl cursor-pointer" onclick="closeModal()">&times;</span>
+            <span class="close absolute top-2 right-2 text-gray-600 text-2xl cursor-pointer"
+                onclick="closeModal()">&times;</span>
             <h2 id="modalRecipeTitle" class="text-2xl font-bold text-gray-900"></h2>
             <img id="modalRecipeImage" class="w-full h-48 object-cover mt-4" src="" alt="">
             <div id="modalIngredientsList" class="mt-4">
@@ -120,7 +175,7 @@
             </div>
             <div id="modalInstructions" class="mt-4">
                 <h3 class="text-xl text-gray-700">Instructions:</h3>
-                <p id="modalInstructionsText" class="mt-2 text-gray-600"></p>
+                <ul id="modalInstructionsList" class="list-disc pl-5 mt-2 text-gray-600"></ul>
             </div>
         </div>
     </div>
@@ -130,35 +185,31 @@
     </footer>
 
     <script>
-        // Open modal function to populate recipe details
         function openModal(button) {
             const recipeId = button.getAttribute('data-id');
-
-            // Fetch recipe details from Flask (you can pass the ID to fetch specific recipe details)
             fetch(`/recipe_details/${recipeId}`)
                 .then(response => response.json())
                 .then(data => {
-                    document.getElementById("modalRecipeTitle").innerText = data.name;
-                    document.getElementById("modalRecipeImage").src = data.image || "";
-                    document.getElementById("modalInstructionsText").innerText = data.instructions;
+                    // Populate modal content
+                    document.getElementById('modalRecipeTitle').textContent = data.name;
+                    document.getElementById('modalRecipeImage').src = data.image;
 
-                    let ingredientsList = document.getElementById("modalIngredients");
-                    ingredientsList.innerHTML = ''; // Clear previous ingredients
-                    data.ingredients.forEach(ingredient => {
-                        let li = document.createElement('li');
-                        li.textContent = ingredient.name;
-                        ingredientsList.appendChild(li);
-                    });
+                    const ingredientsList = data.ingredients.map(ingredient => `<li>${ingredient.name} - ${ingredient.aisle}</li>`).join('');
+                    document.getElementById('modalIngredients').innerHTML = ingredientsList;
+
+                    const instructionsList = data.instructions.map(step => `<li>${step}</li>`).join('');
+                    document.getElementById('modalInstructions').innerHTML = instructionsList;
 
                     // Show the modal
-                    document.getElementById("recipeModal").style.display = "flex";
+                    document.getElementById('recipeModal').classList.remove('hidden');
                 })
-                .catch(error => console.error("Error fetching recipe details:", error));
+                .catch(error => {
+                    console.error('Error fetching recipe details:', error);
+                });
         }
 
-        // Close modal function
         function closeModal() {
-            document.getElementById("recipeModal").style.display = "none";
+            document.getElementById('recipeModal').classList.add('hidden');
         }
     </script>
 </body>
