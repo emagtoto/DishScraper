@@ -1,0 +1,11 @@
+download >>Python 3.9.13
+download >>pip 25.0.1
+
+activate spacy_env:
+open cmd as admin >>
+cd link nung folder (example: cd C:\Users\evtm2\OneDrive\Desktop\SpacyTest2) >>
+.\spacy_env\Scripts\activate       >>
+pip install Flask
+
+>> terminal (vs code) >> python main.py >>
+Running on http://127.0.0.1:5000 (open http://127.0.0.1:5000) sa browser.

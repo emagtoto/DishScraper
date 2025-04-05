@@ -1,0 +1,40 @@
+from flask import Flask, request, render_template
+import spacy
+import pandas as pd
+
+app = Flask(__name__)
+
+# Load English tokenizer, tagger, parser, and NER
+nlp = spacy.load("en_core_web_sm")
+
+# Load recipes from CSV file
+recipes = pd.read_csv('recipes.csv')
+
+# Function to find recipes based on ingredients
+def find_recipes(input_ingredients):
+    input_doc = nlp(input_ingredients.lower())  # Convert input ingredients to lowercase
+    result = []
+
+    # Iterate over each recipe
+    for index, row in recipes.iterrows():
+        recipe_ingredients = row['ingredients'].lower()  # Convert recipe ingredients to lowercase
+        recipe_doc = nlp(recipe_ingredients)
+
+        # Check if all input ingredients are found in the recipe's ingredients
+        if all(token.text.lower() in recipe_ingredients for token in input_doc):
+            result.append({'name': row['name'], 'steps': row['steps']})
+
+    return result
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/get_recipes', methods=['POST'])
+def get_recipes():
+    input_ingredients = request.form['ingredients']
+    results = find_recipes(input_ingredients)
+    return render_template('index.html', results=results, ingredients=input_ingredients)
+
+if __name__ == '__main__':
+    app.run(debug=True)

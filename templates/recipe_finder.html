@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dish Scraper - Recipe Finder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body class="bg-gray-50 font-sans">
+    <nav class="bg-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <a href="/" class="text-2xl font-bold text-gray-600">Dish Scraper</a>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="/" class="text-gray-700 hover:text-gray-600">Home</a>
+                    <a href="/features" class="text-gray-600">Features</a>
+                    <a href="#" class="text-gray-700 hover:text-gray-600">Contact</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="py-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="mt-16">
+                <div class="bg-white rounded-lg shadow-xl overflow-hidden">
+                    <div class="p-8">
+                        <h2 class="text-3xl font-bold text-gray-900">Find Recipes</h2>
+                        <p class="mt-4 text-lg text-gray-600">Find the perfect recipe based on ingredients you have at hand.</p>
+
+                        <form action="/get_recipes" method="post" class="mt-8 space-y-6">
+                            <!-- Ingredients Field -->
+                            <div class="relative">
+                                <label for="ingredients" id="search" class="block text-sm font-medium text-gray-700">Enter Your Ingredients</label>
+                                <div class="mt-1">
+                                    <input type="text" id="ingredients" name="ingredients"
+                                        class="shadow-sm focus:ring-gray-500 focus:border-gray-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                                        placeholder="Type to search ingredients..." required>
+                                </div>
+                            </div>
+
+                            <!-- Dietary Restrictions Dropdown -->
+                            <div class="relative">
+                                <label for="dietary_restrictions" class="block text-sm font-medium text-gray-700">Dietary Restrictions</label>
+                                <select name="dietary_restrictions" id="dietary_restrictions"
+                                    class="shadow-sm focus:ring-gray-500 focus:border-gray-500 block w-full sm:text-sm border-gray-300 rounded-md">
+                                    <option value="">Select Dietary Restriction</option>
+                                    <option value="vegetarian">Vegetarian</option>
+                                    <option value="vegan">Vegan</option>
+                                    <option value="glutenFree">Gluten Free</option>
+                                    <option value="paleo">Paleo</option>
+                                    <option value="lowFodmap">Low FODMAP</option>
+                                    <option value="ketogenic">Ketogenic</option>
+                                    <option value="dairyFree">Dairy Free</option>
+                                </select>
+                            </div>
+
+                            <!-- Health Conditions Dropdown -->
+                            <div class="relative">
+                                <label for="health_conditions" class="block text-sm font-medium text-gray-700">Health Conditions</label>
+                                <select name="health_conditions" id="health_conditions"
+                                    class="shadow-sm focus:ring-gray-500 focus:border-gray-500 block w-full sm:text-sm border-gray-300 rounded-md">
+                                    <option value="">Select Health Condition</option>
+                                    <option value="heartHealthy">Heart Healthy</option>
+                                    <option value="diabetic">Diabetic</option>
+                                    <option value="lowSugar">Low Sugar</option>
+                                    <option value="lowCarb">Low Carb</option>
+                                    <option value="highProtein">High Protein</option>
+                                    <option value="weightLoss">Weight Loss</option>
+                                </select>
+                            </div>
+
+                            <!-- Submit Button -->
+                            <div>
+                                <button type="submit"
+                                    class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                                    Find Recipes
+                                </button>
+                            </div>
+                        </form>
+
+                        <div class="mt-8">
+                            {% if results %}
+                            <h3 class="text-xl font-semibold text-gray-800">Recipes for "{{ ingredients }}":</h3>
+                            <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {% for recipe in results %}
+                                <div class="bg-white rounded-lg shadow-md overflow-hidden">
+                                    <img src="{{ recipe.image }}" alt="{{ recipe.name }}" class="w-full h-48 object-cover">
+                                    <div class="p-4">
+                                        <p class="text-xl font-semibold text-gray-800">{{ recipe.name }}</p>
+                                        <button data-id="{{ recipe.id }}" onclick="openModal(this)" class="mt-2 text-blue-500">View Full Recipe</button>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <p class="text-lg text-gray-600">No recipes found. Try searching with different ingredients!</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recipe Modal -->
+    <div id="recipeModal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-lg w-4/5 max-w-lg p-6 max-h-[80vh] overflow-y-auto relative">
+            <span class="close absolute top-2 right-2 text-gray-600 text-2xl cursor-pointer" onclick="closeModal()">&times;</span>
+            <h2 id="modalRecipeTitle" class="text-2xl font-bold text-gray-900"></h2>
+            <img id="modalRecipeImage" class="w-full h-48 object-cover mt-4" src="" alt="">
+            <div id="modalIngredientsList" class="mt-4">
+                <h3 class="text-xl text-gray-700">Ingredients:</h3>
+                <ul class="list-disc pl-5 mt-2" id="modalIngredients"></ul>
+            </div>
+            <div id="modalInstructions" class="mt-4">
+                <h3 class="text-xl text-gray-700">Instructions:</h3>
+                <p id="modalInstructionsText" class="mt-2 text-gray-600"></p>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-gray-700 text-white text-center py-6 mt-12">
+        <p class="text-lg">&copy; 2025 DishScraper | C307 Group 3</p>
+    </footer>
+
+    <script>
+        // Open modal function to populate recipe details
+        function openModal(button) {
+            const recipeId = button.getAttribute('data-id');
+
+            // Fetch recipe details from Flask (you can pass the ID to fetch specific recipe details)
+            fetch(`/recipe_details/${recipeId}`)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById("modalRecipeTitle").innerText = data.name;
+                    document.getElementById("modalRecipeImage").src = data.image || "";
+                    document.getElementById("modalInstructionsText").innerText = data.instructions;
+
+                    let ingredientsList = document.getElementById("modalIngredients");
+                    ingredientsList.innerHTML = ''; // Clear previous ingredients
+                    data.ingredients.forEach(ingredient => {
+                        let li = document.createElement('li');
+                        li.textContent = ingredient.name;
+                        ingredientsList.appendChild(li);
+                    });
+
+                    // Show the modal
+                    document.getElementById("recipeModal").style.display = "flex";
+                })
+                .catch(error => console.error("Error fetching recipe details:", error));
+        }
+
+        // Close modal function
+        function closeModal() {
+            document.getElementById("recipeModal").style.display = "none";
+        }
+    </script>
+</body>
+
+</html>
