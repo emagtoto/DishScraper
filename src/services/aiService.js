@@ -104,7 +104,7 @@ const buildSmartContextAI = async (ingredients, filters, description) => {
     `;
 
     const messages = [{ role: 'user', content: prompt }];
-    const aiResponse = await callAI(messages, 600, 0.1, true);
+    const aiResponse = await callAI(messages, 400, 0.1, true);
 
     try {
         const baseContext = {
@@ -317,7 +317,7 @@ export const generateAIRecipes = async (ingredients, filters = [], description =
             { role: 'system', content: 'You are an expert Filipino chef from Angeles City, Pampanga. You strictly output valid JSON and always respect dietary restrictions and substitution requirements.' },
             { role: 'user', content: prompt }
         ];
-        const recipeContent = await callAI(recipeMessages, 2048, 0.3, true);
+        const recipeContent = await callAI(recipeMessages, 1500, 0.3, true);
         const recipes = parseAIResponse(recipeContent);
 
         if (recipes.length === 0) throw new Error("AI response was empty or could not be parsed.");
