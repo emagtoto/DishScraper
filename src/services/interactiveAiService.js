@@ -16,9 +16,7 @@ const callDeepSeek = async (messages, max_tokens = 2048, temperature = 0.3) => {
                 response_format: { type: 'json_object' }
             },
             {
-                headers: {
-                    Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
-                    'Content-Type': 'application/json',
+                headers: {'Content-Type': 'application/json',
                 },
                 timeout: 45000
             }
