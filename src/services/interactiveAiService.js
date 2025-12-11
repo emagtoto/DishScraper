@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // --- CONFIG ---
 const DEEPSEEK_API_KEY = process.env.REACT_APP_DEEPSEEK_API_KEY;
-const DEEPSEEK_API_URL = process.env.REACT_APP_DEEPSEEK_API_URL || 'https://api.deepseek.com/chat/completions';
+const DEEPSEEK_API_URL = process.env.REACT_APP_DEEPSEEK_API_URL || '/.netlify/functions/deepseek';
 
 // ✅ Centralized DeepSeek Call
 const callDeepSeek = async (messages, max_tokens = 2048, temperature = 0.3) => {

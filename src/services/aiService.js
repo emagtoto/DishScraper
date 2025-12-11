@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // CONFIGURATION
 const DEEPSEEK_API_KEY = process.env.REACT_APP_DEEPSEEK_API_KEY;
-const DEEPSEEK_API_URL = process.env.REACT_APP_DEEPSEEK_API_URL || 'https://api.deepseek.com/chat/completions';
+const DEEPSEEK_API_URL = process.env.REACT_APP_DEEPSEEK_API_URL || '/.netlify/functions/deepseek';
 
 // AI HELPER FUNCTION
 
