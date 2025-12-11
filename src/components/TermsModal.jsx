@@ -6,7 +6,7 @@ const TermsModal = ({ isOpen, onClose }) => {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-60 z-50 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
-        
+
         {/* Header */}
         <div className="bg-gradient-to-r from-orange-500 to-orange-600 p-4 sm:p-6 text-white">
           <h2 className="text-xl sm:text-3xl font-bold flex items-center gap-3">
@@ -56,7 +56,7 @@ const TermsModal = ({ isOpen, onClose }) => {
                 <li>Allergen information or cross-contamination risks</li>
                 <li>Food safety or proper cooking techniques</li>
               </ul>
-              <div className="bg-yellow-50 border-l-4 border-yellow-500 p-3 sm:p-4 mt-3 rounded">
+              <div className="bg-yellow-50 border border-yellow-500 p-3 sm:p-4 mt-3 rounded">
                 <p className="font-semibold text-yellow-800 text-xs sm:text-sm">⚠️ This platform should NOT replace professional medical or nutritional advice. Always consult with healthcare providers regarding dietary restrictions, allergies, or health concerns.</p>
               </div>
             </section>
@@ -115,9 +115,9 @@ const TermsModal = ({ isOpen, onClose }) => {
             </section>
 
             {/* Contact */}
-            <div className="bg-blue-50 border-l-4 border-blue-500 p-3 sm:p-4 mt-4 rounded">
-              <p className="text-blue-800 text-xs sm:text-sm">
-                <strong>Questions?</strong> If you have any questions about these terms, please contact us at <strong>support@dishscraper.com</strong>
+            <div className="bg-orange-50 border-orange-500 p-3 sm:p-4 mt-4 rounded">
+              <p className="text-xs sm:text-sm">
+                <strong>Questions?</strong> If you have any questions about these terms, please contact us at <strong>dishscrapersupport@gmail.com</strong>
               </p>
             </div>
           </div>

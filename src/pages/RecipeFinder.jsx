@@ -13,7 +13,7 @@ import apiService from "../services/apiService";
 import { generateAIRecipes } from "../services/aiService";
 import { filterRecipesByDescription } from "../services/descriptionFilterService";
 import { searchLocalRecipes } from "../services/localRecipeService";
-import { AlertCircle, CheckCircle, Info, X, Search, ChefHat, Sparkles, Database, Globe } from "lucide-react";
+import { AlertCircle, CheckCircle, Info, X, Search, ChefHat, Sparkles, Database, Globe, ArrowUp, ArrowDown } from "lucide-react";
 import cookingGif from "../assets/cooking.gif";
 
 const RecipeFinder = () => {
@@ -30,12 +30,16 @@ const RecipeFinder = () => {
   const [selectedRecipe, setSelectedRecipe] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
+  const [isMandatoryTermsView, setIsMandatoryTermsView] = useState(false);
   const [fadeIn, setFadeIn] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [loadingApi, setLoadingApi] = useState(false);
   const [loadingLocal, setLoadingLocal] = useState(false);
   const [loadingAI, setLoadingAI] = useState(false);
   const [notification, setNotification] = useState(null);
+  const [searchDots, setSearchDots] = useState("");
+  const [showBackToTop, setShowBackToTop] = useState(false);
+  const [showJumpToResults, setShowJumpToResults] = useState(false);
 
   const resultsRef = useRef(null);
   const notificationTimeoutRef = useRef(null);
@@ -43,7 +47,20 @@ const RecipeFinder = () => {
   const hasScrolledToResults = useRef(false);
   const hasAnimatedFadeIn = useRef(false);
 
-  const [searchDots, setSearchDots] = useState("");
+  // Lock/unlock body scroll when modals open/close
+  useEffect(() => {
+    const isModalOpen = selectedRecipe || showAuthModal || (showTermsModal && isMandatoryTermsView);
+
+    if (isModalOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [selectedRecipe, showAuthModal, showTermsModal, isMandatoryTermsView]);
 
   // Load search parameters from URL on mount
   useEffect(() => {
@@ -94,6 +111,28 @@ const RecipeFinder = () => {
     return () => clearInterval(interval);
   }, [isSearching]);
 
+  // Handle scroll for navigation buttons
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollPosition = window.scrollY;
+      const totalResults = apiResults.length + aiResults.length + localResults.length;
+
+      setShowBackToTop(scrollPosition > 300);
+
+      if (totalResults > 0 && resultsRef.current) {
+        const resultsPosition = resultsRef.current.offsetTop;
+        setShowJumpToResults(scrollPosition < resultsPosition - 200);
+      } else {
+        setShowJumpToResults(false);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    handleScroll();
+
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [apiResults, aiResults, localResults]);
+
   // Notification system
   const showNotification = (message, type = "info", duration = 5000) => {
     if (notificationTimeoutRef.current) {
@@ -117,12 +156,20 @@ const RecipeFinder = () => {
   };
 
   useEffect(() => {
-    const hasSeenTerms = sessionStorage.getItem("hasSeenTerms");
-    if (!hasSeenTerms) {
+    const hasAcceptedTerms = sessionStorage.getItem("hasAcceptedTerms");
+    if (!hasAcceptedTerms) {
+      setIsMandatoryTermsView(true);
       setShowTermsModal(true);
-      sessionStorage.setItem("hasSeenTerms", "true");
     }
   }, []);
+
+  const handleCloseTerms = () => {
+    if (isMandatoryTermsView) {
+      sessionStorage.setItem("hasAcceptedTerms", "true");
+      setIsMandatoryTermsView(false);
+    }
+    setShowTermsModal(false);
+  };
 
   useEffect(() => {
     setSelectedFilters(user.dietaryFilters || []);
@@ -138,7 +185,7 @@ const RecipeFinder = () => {
 
   const smoothScrollTo = (target) => {
     const start = window.scrollY;
-    const end = target.getBoundingClientRect().top + window.scrollY;
+    const end = target === document.body ? 0 : target.getBoundingClientRect().top + window.scrollY;
     const distance = end - start;
     const duration = 1500;
     let startTime = null;
@@ -158,6 +205,16 @@ const RecipeFinder = () => {
     requestAnimationFrame(animation);
   };
 
+  const scrollToTop = () => {
+    smoothScrollTo(document.body);
+  };
+
+  const scrollToResults = () => {
+    if (resultsRef.current) {
+      smoothScrollTo(resultsRef.current);
+    }
+  };
+
   useEffect(() => {
     const totalResults = apiResults.length + aiResults.length + localResults.length;
 
@@ -171,15 +228,12 @@ const RecipeFinder = () => {
     }
   }, [apiResults, aiResults, localResults]);
 
-  // MODIFICATION: Extracted the sorting logic into a reusable function for clarity and consistency.
   const sortRecipes = (recipes) => {
     return [...recipes].sort((a, b) => {
-      // Primary sort: number of matched ingredients (descending)
       const matchDiff = (b.matchingIngredients || 0) - (a.matchingIngredients || 0);
       if (matchDiff !== 0) {
         return matchDiff;
       }
-      // Secondary sort (tie-breaker): relevance score (descending)
       return (b.relevanceScore || 0) - (a.relevanceScore || 0);
     });
   };
@@ -212,7 +266,6 @@ const RecipeFinder = () => {
     }
 
     try {
-      // Local recipe search
       const localPromise = (async () => {
         setLoadingLocal(true);
         try {
@@ -223,7 +276,7 @@ const RecipeFinder = () => {
           );
 
           if (filteredLocal.length) {
-            setLocalResults(sortRecipes(filteredLocal)); // Use the new sort function
+            setLocalResults(sortRecipes(filteredLocal));
             console.log(`✅ Local: ${filteredLocal.length} recipes sorted.`);
           }
           return filteredLocal;
@@ -232,7 +285,6 @@ const RecipeFinder = () => {
         }
       })();
 
-      // AI recipe generation
       const aiPromise = (async () => {
         setLoadingAI(true);
         try {
@@ -245,7 +297,7 @@ const RecipeFinder = () => {
           const recipes = result?.data || [];
 
           if (recipes.length) {
-            setAiResults(sortRecipes(recipes)); // Use the new sort function
+            setAiResults(sortRecipes(recipes));
             console.log(`✅ AI: ${recipes.length} recipes sorted.`);
           }
           return recipes;
@@ -254,53 +306,56 @@ const RecipeFinder = () => {
         }
       })();
 
-      // Spoonacular API search
       const spoonacularPromise = (async () => {
         setLoadingApi(true);
         try {
           const result = await apiService.complexRecipeSearch(
             selectedIngredients,
             selectedFilters,
-            400,
+            1000,
             description,
             async (intermediateResults) => {
-              if (intermediateResults.length > 0) {
-                // This logic correctly restores match data if the description filter removes it.
-                const originalMatchData = new Map(
-                  intermediateResults.map(r => [r.id, {
-                    matchingIngredients: r.matchingIngredients,
-                    matchPercentage: r.matchPercentage,
-                    matchedIngredientsList: r.matchedIngredientsList,
-                    relevanceScore: r.relevanceScore
-                  }])
-                );
+              if (intermediateResults.length === 0) return;
 
-                let filteredBatch = intermediateResults;
+              const originalMatchData = new Map(
+                intermediateResults.map(r => [r.id, {
+                  matchingIngredients: r.matchingIngredients,
+                  matchPercentage: r.matchPercentage,
+                  matchedIngredientsList: r.matchedIngredientsList,
+                  relevanceScore: r.relevanceScore
+                }])
+              );
 
-                if (description.trim() && filteredBatch.length > 0) {
-                  try {
-                    filteredBatch = await filterRecipesByDescription(filteredBatch, description);
-                  } catch (err) {
-                    console.error("Description filter error:", err);
-                  }
+              let filteredBatch = intermediateResults;
+
+              if (description.trim() && filteredBatch.length > 0) {
+                try {
+                  filteredBatch = await filterRecipesByDescription(filteredBatch, description);
+                } catch (err) {
+                  console.error("Description filter error:", err);
                 }
-
-                filteredBatch = filteredBatch.map(recipe => {
-                  const matchData = originalMatchData.get(recipe.id);
-                  if (matchData) {
-                    return { ...recipe, ...matchData };
-                  }
-                  return recipe;
-                });
-
-                // Use the new sort function on the full, updated list.
-                setApiResults(sortRecipes(filteredBatch));
               }
+
+              filteredBatch = filteredBatch.map(recipe => {
+                const matchData = originalMatchData.get(recipe.id);
+                if (matchData) {
+                  return {
+                    ...recipe,
+                    matchingIngredients: matchData.matchingIngredients,
+                    matchPercentage: matchData.matchPercentage,
+                    matchedIngredientsList: matchData.matchedIngredientsList,
+                    relevanceScore: matchData.relevanceScore
+                  };
+                }
+                return recipe;
+              });
+
+              setApiResults(sortRecipes(filteredBatch));
             }
           );
 
           const spoonacularData = result?.data || [];
-          console.log(`✅ Spoonacular complete: ${spoonacularData.length} recipes with stricter nutrition filters applied`);
+          console.log(`✅ Spoonacular complete: ${spoonacularData.length} recipes`);
 
           return spoonacularData;
         } catch (err) {
@@ -379,6 +434,7 @@ const RecipeFinder = () => {
 
   const renderResults = (title, results, expanded, setExpanded, icon, loading, hideExpand = false) => {
     const IconComponent = icon;
+    const shouldShowExpandButton = results.length > 3 && !hideExpand;
 
     return (
       <div className="mb-6 sm:mb-8">
@@ -429,12 +485,13 @@ const RecipeFinder = () => {
                     onSave={saveRecipe}
                     showSaveButton={true}
                     sourceTag={recipe.source || "Spoonacular"}
+                    onAuthRequired={() => setShowAuthModal(true)} // ADD THIS LINE
                   />
                 ))}
               </div>
             </div>
 
-            {results.length > 0 && !hideExpand && (
+            {shouldShowExpandButton && (
               <div className="text-center mt-3 sm:mt-4">
                 <button
                   onClick={() => setExpanded(!expanded)}
@@ -469,7 +526,7 @@ const RecipeFinder = () => {
 
     return (
       <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-md px-4 animate-slideDown">
-        <div className={`${styles[notification.type]} border-l-4 rounded-xl shadow-lg p-3 sm:p-4 flex items-start gap-2 sm:gap-3`}>
+        <div className={`${styles[notification.type]} rounded-xl shadow-lg p-3 sm:p-4 flex items-start gap-2 sm:gap-3`}>
           <div className="flex-shrink-0 mt-0.5">
             {icons[notification.type]}
           </div>
@@ -508,13 +565,31 @@ const RecipeFinder = () => {
 
       <NotificationBanner />
 
+      {showBackToTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-6 right-6 z-40 bg-gradient-to-r from-orange-700 to-orange-800 text-white p-3 sm:p-4 rounded-full shadow-xl hover:shadow-2xl hover:from-orange-600 hover:to-orange-900 transition-all duration-300 hover:scale-110 group"
+          aria-label="Back to top"
+        >
+          <ArrowUp className="w-5 h-5 sm:w-6 sm:h-6 group-hover:animate-bounce" />
+        </button>
+      )}
+
+      {showJumpToResults && (apiResults.length > 0 || aiResults.length > 0 || localResults.length > 0) && (
+        <button
+          onClick={scrollToResults}
+          className="fixed bottom-6 left-6 z-40 bg-gradient-to-r from-orange-700 to-orange-800 text-white px-4 py-3 sm:px-5 sm:py-4 rounded-full
+          shadow-xl hover:shadow-2xl hover:from-orange-600 hover:to-orange-800 transition-all duration-300 hover:scale-105 group flex items-center gap-2"
+          aria-label="Jump to results"
+        >
+          <span className="text-sm sm:text-base font-semibold hidden sm:inline">View Results</span>
+          <ArrowDown className="w-5 h-5 sm:w-6 sm:h-6 group-hover:animate-bounce" />
+        </button>
+      )}
+
       <div className="p-3 sm:p-4 md:p-6 max-w-7xl mx-auto">
         {/* Hero Section */}
         <div className="text-center mb-6 sm:mb-8 md:mb-10">
-          <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-orange-100 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full mb-3 sm:mb-4">
-            <ChefHat className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" />
-            <span className="text-xs sm:text-sm font-semibold text-orange-700">Intelligent Recipe Discovery</span>
-          </div>
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-2 sm:mb-3 px-4">
             Find Your Perfect Recipe
           </h1>
@@ -581,7 +656,7 @@ const RecipeFinder = () => {
               </div>
             </div>
 
-            {/* Dynamically ordered results - sections with results appear first */}
+            {/* Dynamically ordered results */}
             {(() => {
               const sections = [
                 {
@@ -609,29 +684,25 @@ const RecipeFinder = () => {
                   title: "AI Generated Recipes",
                   results: aiResults,
                   expanded: false,
-                  setExpanded: () => {},
+                  setExpanded: () => { },
                   icon: Sparkles,
                   loading: loadingAI,
                   hideExpand: true
                 }
               ];
 
-              // Sort sections: those with results first, then loading, then empty
               const sortedSections = [...sections].sort((a, b) => {
                 const aHasResults = a.results.length > 0;
                 const bHasResults = b.results.length > 0;
                 const aIsLoading = a.loading && a.results.length === 0;
                 const bIsLoading = b.loading && b.results.length === 0;
 
-                // Sections with results come first
                 if (aHasResults && !bHasResults) return -1;
                 if (!aHasResults && bHasResults) return 1;
-                
-                // If both have results or both don't, check loading state
+
                 if (aIsLoading && !bIsLoading) return -1;
                 if (!aIsLoading && bIsLoading) return 1;
-                
-                // Keep original order if same priority
+
                 return 0;
               });
 
@@ -685,11 +756,6 @@ const RecipeFinder = () => {
                     → Search History
                   </Link>
                 </li>
-                <li>
-                  <Link to="/profile" className="hover:text-white transition-colors flex items-center gap-2">
-                    → Profile
-                  </Link>
-                </li>
               </ul>
             </div>
 
@@ -721,6 +787,7 @@ const RecipeFinder = () => {
         <RecipeModal
           recipe={selectedRecipe}
           onClose={() => setSelectedRecipe(null)}
+          onAuthRequired={() => setShowAuthModal(true)} // ADD THIS LINE
         />
       )}
 
@@ -733,7 +800,7 @@ const RecipeFinder = () => {
       {showTermsModal && (
         <TermsModal
           isOpen={showTermsModal}
-          onClose={() => setShowTermsModal(false)}
+          onClose={handleCloseTerms}
         />
       )}
 

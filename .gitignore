@@ -32,3 +32,6 @@ firebase-debug.log
 *.swp
 *.swo
 *~
+
+.netlify
+.env.local

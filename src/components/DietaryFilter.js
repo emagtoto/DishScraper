@@ -21,7 +21,7 @@ const filterCategories = {
 };
 
 export default function DietaryFilter({ selectedFilters, setSelectedFilters }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded] = useState(false);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
 
@@ -171,30 +171,6 @@ export default function DietaryFilter({ selectedFilters, setSelectedFilters }) {
             <p className="text-xs sm:text-sm text-gray-500">Try adjusting your search or category</p>
           </div>
         )}
-      </div>
-
-      {/* Expand/Collapse Button */}
-      <div className="text-center mt-3 sm:mt-4">
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="text-orange-600 text-xs sm:text-sm font-semibold hover:text-orange-700 transition-colors duration-150 flex items-center gap-1.5 sm:gap-2 mx-auto px-3 sm:px-4 py-2"
-        >
-          {expanded ? (
-            <>
-              <span>Show Less</span>
-              <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-              </svg>
-            </>
-          ) : (
-            <>
-              <span>Show More</span>
-              <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </>
-          )}
-        </button>
       </div>
 
       {/* Selected Filters Summary */}

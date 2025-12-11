@@ -67,6 +67,21 @@ export const updateDietaryFilters = async (uid, filters) => {
   }
 };
 
+// --- THIS IS THE NEW FUNCTION YOU NEED ---
+export const updateUserName = async (uid, newName) => {
+  try {
+    const userRef = doc(db, "users", uid);
+    await updateDoc(userRef, {
+      name: newName
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error updating user name:", error);
+    return { success: false, error };
+  }
+};
+// -----------------------------------------
+
 export const addSearchHistory = async (uid, searchData) => {
   try {
     const userRef = doc(db, "users", uid);

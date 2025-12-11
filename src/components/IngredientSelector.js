@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, X, Plus, ChefHat } from 'lucide-react';
+import { Search, X, Plus, ChefHat, Info } from 'lucide-react';
 import ingredients from '../data/ingredients';
 
 export default function IngredientSelector({ selectedIngredients, setSelectedIngredients }) {
@@ -7,7 +7,6 @@ export default function IngredientSelector({ selectedIngredients, setSelectedIng
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchRef = useRef(null);
 
-  // Smart filtering with exact match priority
   const filteredIngredients = ingredients
     .filter(
       ing => 
@@ -19,17 +18,14 @@ export default function IngredientSelector({ selectedIngredients, setSelectedIng
       const aLower = a.toLowerCase();
       const bLower = b.toLowerCase();
 
-      // Exact match gets highest priority
       if (aLower === searchLower) return -1;
       if (bLower === searchLower) return 1;
 
-      // Starts with search term gets second priority
       const aStarts = aLower.startsWith(searchLower);
       const bStarts = bLower.startsWith(searchLower);
       if (aStarts && !bStarts) return -1;
       if (!aStarts && bStarts) return 1;
 
-      // Otherwise alphabetical
       return a.localeCompare(b);
     });
 
@@ -60,16 +56,28 @@ export default function IngredientSelector({ selectedIngredients, setSelectedIng
     if (e.key === 'Enter' && filteredIngredients.length > 0) {
       e.preventDefault();
       addIngredient(filteredIngredients[0]);
+    } else if (e.key === 'Enter' && searchTerm.trim() && filteredIngredients.length === 0) {
+      e.preventDefault();
+      addIngredient(searchTerm.trim());
     }
   };
 
   return (
     <div className="mb-8">
-      <div className="flex items-center gap-2 mb-3">
+      {/* Header with Helper Tip */}
+      <div className="flex items-center gap-2 mb-4">
         <ChefHat className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" />
         <label className="text-base sm:text-lg font-bold text-gray-900">
-          Select Ingredients
+          What ingredients do you have?
         </label>
+      </div>
+
+      {/* Helper Text */}
+      <div className="mb-4 flex items-start gap-2 bg-orange-50 border-orange-500 p-3 rounded">
+        <Info className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+        <p className="text-xs sm:text-sm text-orange-800">
+          <span className="font-semibold">How it works:</span> Type an ingredient name below, click it from the list to add it. You can add as many as you want, or type custom ones.
+        </p>
       </div>
 
       {/* Search Input */}
@@ -85,7 +93,7 @@ export default function IngredientSelector({ selectedIngredients, setSelectedIng
             }}
             onFocus={() => setShowSuggestions(true)}
             onKeyDown={handleKeyDown}
-            placeholder="Search and add ingredients..."
+            placeholder="Type: chicken, tomato, garlic..."
             className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-2.5 sm:py-3 text-sm sm:text-base border-2 border-gray-200 rounded-xl focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-200 transition-all duration-200 text-gray-900 placeholder-gray-400"
           />
         </div>
@@ -99,27 +107,30 @@ export default function IngredientSelector({ selectedIngredients, setSelectedIng
                   <button
                     key={ingredient}
                     onClick={() => addIngredient(ingredient)}
-                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-left hover:bg-orange-50 transition-colors duration-150 flex items-center justify-between group"
+                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-left hover:bg-orange-50 active:bg-orange-100 transition-colors duration-100 flex items-center justify-between group"
+                    title="Click to add this ingredient"
                   >
                     <span className="text-sm sm:text-base text-gray-700 font-medium">{ingredient}</span>
-                    <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-orange-500 opacity-0 group-hover:opacity-100 transition-opacity duration-150" />
+                    <Plus className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500 opacity-100" />
                   </button>
                 ))}
                 {filteredIngredients.length > 20 && (
-                  <div className="px-3 sm:px-4 py-2 text-center text-xs sm:text-sm text-gray-500 border-t border-gray-200">
-                    {filteredIngredients.length - 20} more ingredients available...
+                  <div className="px-3 sm:px-4 py-2 sm:py-3 text-center text-xs sm:text-sm text-gray-600 bg-gray-50 border-t border-gray-200">
+                    <p className="font-medium">Showing 20 of {filteredIngredients.length} matches</p>
+                    <p className="text-gray-500 text-xs mt-1">Type more to narrow results</p>
                   </div>
                 )}
               </div>
             ) : (
               <div className="px-3 sm:px-4 py-4 sm:py-5 text-center">
-                <p className="text-sm sm:text-base font-medium text-gray-600 mb-3">Ingredient not found</p>
+                <p className="text-sm sm:text-base font-medium text-gray-700 mb-1">"{searchTerm}" not in our list?</p>
+                <p className="text-xs sm:text-sm text-gray-600 mb-4">No problem! You can add it as a custom ingredient.</p>
                 <button
-                  onClick={() => addIngredient(searchTerm)}
-                  className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white px-4 py-2.5 rounded-lg font-semibold text-sm sm:text-base transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
+                  onClick={() => addIngredient(searchTerm.trim())}
+                  className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white px-4 py-2.5 sm:py-3 rounded-lg font-semibold text-sm sm:text-base transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
                 >
                   <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-                  Add "{searchTerm}" as custom ingredient
+                  Add "{searchTerm}" as ingredient
                 </button>
               </div>
             )}
@@ -130,16 +141,19 @@ export default function IngredientSelector({ selectedIngredients, setSelectedIng
       {/* Selected Ingredients Display */}
       {selectedIngredients.length > 0 && (
         <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl p-4 sm:p-5 border-2 border-orange-200">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xs sm:text-sm font-bold text-gray-700 uppercase tracking-wide">
-              Selected Ingredients
-            </h3>
-            <span className="bg-orange-500 text-white px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs font-bold">
-              {selectedIngredients.length}
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-xs sm:text-sm font-bold text-gray-700 uppercase tracking-wide">
+                Your ingredients
+              </h3>
+              <p className="text-xs text-gray-600 mt-1">Ready to find recipes? Click "Find Recipes" button below</p>
+            </div>
+            <span className="bg-orange-500 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-sm sm:text-base font-bold">
+              {selectedIngredients.length} added
             </span>
           </div>
           
-          <div className="flex flex-wrap gap-1.5 sm:gap-2">
+          <div className="flex flex-wrap gap-2 mb-4">
             {selectedIngredients.map((ingredient) => (
               <div
                 key={ingredient}
@@ -150,6 +164,7 @@ export default function IngredientSelector({ selectedIngredients, setSelectedIng
                   onClick={() => removeIngredient(ingredient)}
                   className="text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md p-1.5 transition-all duration-150"
                   aria-label={`Remove ${ingredient}`}
+                  title="Click to remove"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -160,10 +175,10 @@ export default function IngredientSelector({ selectedIngredients, setSelectedIng
           {selectedIngredients.length > 0 && (
             <button
               onClick={() => setSelectedIngredients([])}
-              className="mt-3 sm:mt-4 text-xs sm:text-sm text-orange-600 hover:text-orange-700 font-semibold transition-colors duration-150 flex items-center gap-1 px-2 py-1"
+              className="text-xs sm:text-sm text-orange-600 hover:text-orange-700 font-semibold transition-colors duration-150 flex items-center gap-1 px-2 py-1 hover:bg-orange-100 rounded"
             >
               <X className="w-4 h-4" />
-              Clear all
+              Remove all
             </button>
           )}
         </div>
@@ -171,12 +186,12 @@ export default function IngredientSelector({ selectedIngredients, setSelectedIng
 
       {/* Empty State */}
       {selectedIngredients.length === 0 && (
-        <div className="bg-gray-50 rounded-xl p-4 sm:p-6 border-2 border-dashed border-gray-300 text-center">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-2 sm:mb-3">
-            <Search className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" />
+        <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl p-4 sm:p-6 border-2 border-orange-200 text-center">
+          <div className="w-12 h-12 sm:w-16 sm:h-16 bg-orange-200 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
+            <ChefHat className="w-6 h-6 sm:w-8 sm:h-8 text-orange-600" />
           </div>
-          <p className="text-sm sm:text-base text-gray-600 font-medium mb-1">No ingredients selected yet</p>
-          <p className="text-xs sm:text-sm text-gray-500">Start typing to search and add ingredients</p>
+          <p className="text-sm sm:text-base text-gray-700 font-medium mb-2">Start by adding ingredients</p>
+          <p className="text-xs sm:text-sm text-gray-600">Type in the search box above (like "chicken" or "rice") and click results to add them</p>
         </div>
       )}
     </div>

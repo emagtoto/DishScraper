@@ -2,17 +2,21 @@ import React, { useState } from "react";
 import { useUser } from "../context/UserContext";
 import RecipeModal from "../components/RecipeModal";
 import { removeSavedRecipe } from "../services/userService";
-import { Trash2, BookOpen, ChefHat } from "lucide-react";
+import { Trash2, BookOpen, ChefHat, X, Check } from "lucide-react"; // Imported X and Check icons
 
 const SavedRecipes = () => {
   const { user, setUser } = useUser();
   const [selectedRecipe, setSelectedRecipe] = useState(null);
   const [removing, setRemoving] = useState(null);
+  // New state to track which recipe is waiting for confirmation
+  const [confirming, setConfirming] = useState(null); 
 
-  const removeRecipe = async (recipe) => {
+  // Combined function to handle the actual removal logic
+  const handleRemove = async (recipe) => {
     if (!user?.uid) return;
 
-    setRemoving(recipe.id);
+    setConfirming(null); // Clear confirmation state
+    setRemoving(recipe.id); // Start loading state
 
     const result = await removeSavedRecipe(user.uid, recipe);
 
@@ -25,7 +29,19 @@ const SavedRecipes = () => {
       alert("Failed to remove recipe. Please try again.");
     }
 
-    setRemoving(null);
+    setRemoving(null); // Stop loading state
+  };
+
+  // Function to initiate the confirmation state
+  const initiateRemoveConfirmation = (recipe) => {
+    // Only allow one confirmation at a time
+    if (removing || confirming) return;
+    setConfirming(recipe.id);
+  };
+
+  // Function to cancel the confirmation state
+  const cancelRemoveConfirmation = () => {
+    setConfirming(null);
   };
 
   return (
@@ -45,6 +61,7 @@ const SavedRecipes = () => {
         </div>
 
         {/* Content Section */}
+        {/* ... (Login and Empty State content remains the same) ... */}
         {!user?.isLoggedIn ? (
           <div className="flex flex-col items-center justify-center py-20">
             <div className="bg-white rounded-2xl shadow-lg p-12 max-w-md text-center border border-gray-100">
@@ -52,7 +69,7 @@ const SavedRecipes = () => {
                 <ChefHat className="w-10 h-10 text-orange-500" />
               </div>
               <h2 className="text-2xl font-semibold text-gray-900 mb-3">
-                Welcome Back!
+                Welcome!
               </h2>
               <p className="text-gray-600 mb-6">
                 Please log in to view and manage your saved recipes.
@@ -88,7 +105,8 @@ const SavedRecipes = () => {
                 <div
                   key={recipe.id}
                   className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer group border border-gray-100 flex flex-col"
-                  onClick={() => setSelectedRecipe(recipe)}
+                  // Only open modal if not confirming/removing
+                  onClick={() => !(confirming || removing) && setSelectedRecipe(recipe)}
                 >
                   {/* Recipe Image */}
                   <div className="relative h-48 bg-gradient-to-br from-orange-100 to-amber-100 overflow-hidden">
@@ -133,31 +151,58 @@ const SavedRecipes = () => {
                       </div>
                     )}
 
-                    {/* Remove Button */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeRecipe(recipe);
-                      }}
-                      disabled={removing === recipe.id}
-                      className={`w-full py-2.5 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 font-medium text-sm ${
-                        removing === recipe.id
-                          ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                          : "bg-red-50 text-red-600 hover:bg-red-600 hover:text-white border border-red-200 hover:border-red-600"
-                      }`}
-                    >
-                      {removing === recipe.id ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                          Removing...
-                        </>
-                      ) : (
-                        <>
-                          <Trash2 className="w-4 h-4" />
-                          Remove
-                        </>
-                      )}
-                    </button>
+                    {/* Conditional Buttons based on State */}
+                    {confirming === recipe.id ? (
+                      // --- CONFIRMATION STATE BUTTONS ---
+                      <div className="flex gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemove(recipe); // Execute removal
+                          }}
+                          className="w-1/2 py-2.5 rounded-lg transition-all duration-200 flex items-center justify-center gap-1 font-medium text-sm bg-red-600 text-white hover:bg-red-700"
+                        >
+                          <Check className="w-4 h-4" />
+                          Confirm
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            cancelRemoveConfirmation(); // Cancel removal
+                          }}
+                          className="w-1/2 py-2.5 rounded-lg transition-all duration-200 flex items-center justify-center gap-1 font-medium text-sm bg-gray-200 text-gray-700 hover:bg-gray-300"
+                        >
+                          <X className="w-4 h-4" />
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      // --- INITIAL/REMOVING STATE BUTTON ---
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          initiateRemoveConfirmation(recipe); // Start confirmation
+                        }}
+                        disabled={removing === recipe.id}
+                        className={`w-full py-2.5 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 font-medium text-sm ${
+                          removing === recipe.id
+                            ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                            : "bg-red-50 text-red-600 hover:bg-red-600 hover:text-white border border-red-200 hover:border-red-600"
+                        }`}
+                      >
+                        {removing === recipe.id ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                            Removing...
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="w-4 h-4" />
+                            Remove
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}

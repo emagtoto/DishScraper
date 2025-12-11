@@ -1,10 +1,10 @@
 import axios from 'axios';
 
-// --- CONFIGURATION ---
+// CONFIGURATION
 const DEEPSEEK_API_KEY = process.env.REACT_APP_DEEPSEEK_API_KEY;
 const DEEPSEEK_API_URL = process.env.REACT_APP_DEEPSEEK_API_URL || 'https://api.deepseek.com/chat/completions';
 
-// --- AI HELPER FUNCTION ---
+// AI HELPER FUNCTION
 
 /**
  * A centralized function to call the AI model.
@@ -51,17 +51,17 @@ const callAI = async (messages, max_tokens = 500, temperature = 0.1, isJson = tr
             const isTimeout = error.code === 'ECONNABORTED';
 
             if (isTimeout && attempt < maxRetries) {
-                console.warn(`⏱️ AI Helper call timed out. Attempt ${attempt + 1}/${maxRetries + 1}. Retrying...`);
+                console.warn(`⏱ AI Helper call timed out. Attempt ${attempt + 1}/${maxRetries + 1}. Retrying...`);
                 await new Promise(resolve => setTimeout(resolve, 1500 * (attempt + 1))); // Wait before retrying
             } else {
-                console.error(`❌ AI Helper Call Error (Attempt ${attempt + 1}):`, error.response ? error.response.data : error.message);
+                console.error(` AI Helper Call Error (Attempt ${attempt + 1}):`, error.response ? error.response.data : error.message);
                 break; // Break on non-timeout errors or on the last attempt
             }
         }
     }
 
     // If the loop completes without returning, all retries have failed.
-    console.error('❌ AI Helper failed after all attempts.', lastError);
+    console.error(' AI Helper failed after all attempts.', lastError);
     throw new Error(`An AI sub-task failed after ${maxRetries + 1} attempts.`);
 };
 
@@ -69,42 +69,67 @@ const callAI = async (messages, max_tokens = 500, temperature = 0.1, isJson = tr
 // --- CORE AI-DRIVEN FUNCTIONS ---
 
 /**
- * 🧠 AI-POWERED SMART CONTEXT BUILDER
+ * AI-POWERED SMART CONTEXT BUILDER
  * Uses an AI call to analyze the user's input and create a structured context.
  * This replaces the static keyword lists for categorization.
  */
 const buildSmartContextAI = async (ingredients, filters, description) => {
-    const prompt = `
-        You are a culinary data analyst. Analyze the user's recipe request and return a structured JSON object.
-        - Categorize the ingredients provided.
-        - Infer dietary constraints from the filters.
-        - Infer flavor, meal type, and time constraints from the natural language description.
+    const prompt = `   
+        You are a culinary data analyst. Your job is to meticulously analyze the user's recipe request and return a structured JSON object.
+        - Categorize the provided ingredients.
+        - Extract ALL dietary constraints and allergies from the filters list.
+        - Identify any conflicts between ingredients and filters (e.g., shrimp with shellfish-free filter).
+        - If the recipe is ethically immoral or unsafe(eg., usage of human ingredients, poison, exotic animals, domestic animals, and endangered species), respond with {"error": "Modification request denied due to ethical or safety concerns."}
+        - From the natural language description, infer all preferences:
+          - **Flavor Profile**: Words like 'spicy', 'savory', 'sweet', 'sour', 'umami'.
+          - **Dish Type**: Words like 'soup', 'stew', 'salad', 'fried', 'grilled'.
+          - **Cuisine Style**: If a specific cuisine is mentioned or implied, like 'Italian style' or 'with a Japanese twist'.
+          - **Meal Type**: 'breakfast', 'lunch', 'dinner', 'snack'.
+          - **Time Constraints**: 'quick', 'under 30 minutes'.
+          - **Positive Keywords**: Other important characteristics like 'healthy', 'comfort food', 'light', 'for kids'.
 
         USER INPUT:
         - Ingredients: ${ingredients.join(', ')}
         - Filters: ${filters.join(', ')}
         - Description: "${description}"
 
-        Respond ONLY with a JSON object with this exact structure:
+        Respond ONLY with a JSON object with this exact structure. Omit empty arrays.
         {
             "ingredients": { "proteins": [], "vegetables": [], "carbs": [], "condiments": [], "primary": [] },
-            "constraints": { "dietary": [], "time": null },
-            "preferences": { "flavor": [], "meal": null }
+            "constraints": { 
+                "dietary": [], 
+                "allergies": [],
+                "health": [],
+                "time": null 
+            },
+            "conflicts": [{"ingredient": "shrimp", "filter": "Shellfish-Free", "suggestion": "use firm tofu or chicken"}],
+            "preferences": { 
+                "flavor_profile": [], 
+                "meal_type": null,
+                "dish_type": [],
+                "cuisine_style": [],
+                "positive_keywords": []
+             }
         }
-        Possible values for dietary: "plant-based", "gluten-free", "dairy-free", "low-carb".
+        
+        For dietary array, extract values like: "vegan", "vegetarian", "keto", "paleo", etc.
+        For allergies array, extract values like: "gluten-free", "dairy-free", "nut-free", "shellfish-free", etc.
+        For health array, extract values like: "low-carb", "low-sodium", "high-protein", etc.
+        For conflicts, identify ingredients that violate the selected filters and provide substitution suggestions.
         Possible values for time: "quick" (under 30 mins) or null.
-        Possible values for meal: "breakfast", "lunch", "dinner", "snack", or null.
+        Possible values for meal_type: "breakfast", "lunch", "dinner", "snack", or null.
     `;
 
     const messages = [{ role: 'user', content: prompt }];
-    const aiResponse = await callAI(messages, 500, 0.1, true);
+    const aiResponse = await callAI(messages, 600, 0.1, true);
 
     try {
         // Add a default structure to merge with the AI response for safety
         const baseContext = {
             ingredients: { proteins: [], vegetables: [], carbs: [], condiments: [], primary: [] },
-            constraints: { dietary: [], time: null },
-            preferences: { flavor: [], meal: null }
+            constraints: { dietary: [], allergies: [], health: [], time: null },
+            conflicts: [],
+            preferences: { flavor_profile: [], meal_type: null, dish_type: [], cuisine_style: [], positive_keywords: [] }
         };
         const parsedContext = JSON.parse(aiResponse);
         // Deep merge to ensure all keys exist
@@ -114,43 +139,130 @@ const buildSmartContextAI = async (ingredients, filters, description) => {
         // Fallback to a very basic context if parsing fails
         return {
             ingredients: { primary: ingredients },
-            constraints: {},
+            constraints: { dietary: [], allergies: [], health: [] },
+            conflicts: [],
             preferences: {}
         };
     }
 };
 
 /**
- * 🎯 COMPACT PROMPT BUILDER
+ *  COMPACT PROMPT BUILDER
  * Creates the main prompt for recipe generation based on the AI-generated context.
  */
 const buildCompactPrompt = (ingredients, description, count, context) => {
-    const dietaryRules = context.constraints?.dietary?.map(d => {
-        if (d === 'plant-based') return 'MUST BE VEGAN (no meat, dairy, eggs, or fish sauce). Use plant-based substitutes.';
-        if (d === 'gluten-free') return 'MUST BE GLUTEN-FREE. Use tamari instead of soy sauce, use rice flour/noodles.';
-        if (d === 'dairy-free') return 'MUST BE DAIRY-FREE. Use coconut milk/oil instead of dairy products.';
-        if (d === 'low-carb') return 'MUST BE LOW-CARB. Minimize rice, noodles, and sugar; maximize vegetables.';
-        return '';
-    }).filter(Boolean) || [];
+    // Build comprehensive dietary rules from all constraint types
+    const allDietaryRules = [];
+    
+    // Process dietary preferences
+    if (context.constraints?.dietary?.length > 0) {
+        context.constraints.dietary.forEach(d => {
+            const dLower = d.toLowerCase();
+            if (dLower.includes('vegan') || dLower === 'plant-based') {
+                allDietaryRules.push('MUST BE VEGAN: No meat, seafood, dairy, eggs, honey, or any animal products. Use plant-based alternatives.');
+            } else if (dLower.includes('vegetarian')) {
+                allDietaryRules.push('MUST BE VEGETARIAN: No meat or seafood. Dairy and eggs are allowed.');
+            } else if (dLower.includes('pescatarian')) {
+                allDietaryRules.push('MUST BE PESCATARIAN: No meat except fish and seafood. Eggs and dairy allowed.');
+            } else if (dLower.includes('keto')) {
+                allDietaryRules.push('MUST BE KETO: Very low carb (under 20g net carbs), high fat, moderate protein. No rice, bread, sugar, or starchy vegetables.');
+            } else if (dLower.includes('paleo')) {
+                allDietaryRules.push('MUST BE PALEO: No grains, legumes, dairy, refined sugar, or processed foods. Focus on whole foods.');
+            }
+        });
+    }
+    
+    // Process allergy restrictions
+    if (context.constraints?.allergies?.length > 0) {
+        context.constraints.allergies.forEach(a => {
+            const aLower = a.toLowerCase();
+            if (aLower.includes('gluten')) {
+                allDietaryRules.push('MUST BE GLUTEN-FREE: Use tamari instead of soy sauce, rice flour instead of wheat flour, rice noodles instead of wheat noodles.');
+            } else if (aLower.includes('dairy')) {
+                allDietaryRules.push('MUST BE DAIRY-FREE: Use coconut milk/cream instead of dairy milk/cream, coconut oil instead of butter.');
+            } else if (aLower.includes('nut-free') || aLower.includes('peanut')) {
+                allDietaryRules.push('MUST BE NUT-FREE: Absolutely no peanuts, almonds, cashews, or any tree nuts. No peanut butter or nut-based sauces.');
+            } else if (aLower.includes('shellfish')) {
+                allDietaryRules.push('MUST BE SHELLFISH-FREE: No shrimp, crab, lobster, mussels, clams, or oysters. Use fish, chicken, tofu, or mushrooms as protein substitutes.');
+            } else if (aLower.includes('fish') && !aLower.includes('shellfish')) {
+                allDietaryRules.push('MUST BE FISH-FREE: No fish or fish sauce. Use soy sauce, coconut aminos, or salt for umami. Use chicken, pork, tofu, or beans for protein.');
+            } else if (aLower.includes('soy')) {
+                allDietaryRules.push('MUST BE SOY-FREE: No soy sauce, tofu, or soy-based products. Use coconut aminos or fish sauce for umami.');
+            } else if (aLower.includes('egg')) {
+                allDietaryRules.push('MUST BE EGG-FREE: No eggs in any form. Use flax eggs or aquafaba as binders if needed.');
+            }
+        });
+    }
+    
+    // Process health restrictions
+    if (context.constraints?.health?.length > 0) {
+        context.constraints.health.forEach(h => {
+            const hLower = h.toLowerCase();
+            if (hLower.includes('low-carb')) {
+                allDietaryRules.push('MUST BE LOW-CARB: Minimize rice, noodles, bread, and sugar. Maximize vegetables and protein. Under 30g carbs per serving.');
+            } else if (hLower.includes('low-sodium')) {
+                allDietaryRules.push('MUST BE LOW-SODIUM: Use minimal salt and soy sauce. Rely on herbs, spices, and citrus for flavor.');
+            } else if (hLower.includes('high-protein')) {
+                allDietaryRules.push('MUST BE HIGH-PROTEIN: Each recipe should contain at least 25g protein per serving. Emphasize lean meats, fish, eggs, or legumes.');
+            }
+        });
+    }
 
-    const flavorGuide = context.preferences?.flavor?.length > 0 ? `FLAVOR PROFILE: Emphasize ${context.preferences.flavor.join(', ')} notes.` : '';
-    const timeGuide = context.constraints?.time === 'quick' ? 'TIME: All recipes must be cookable in under 30 minutes.' : '';
-    const mealGuide = context.preferences?.meal ? `MEAL: Recipes should be suitable for ${context.preferences.meal}.` : '';
+    // Handle ingredient conflicts with substitution instructions
+    let conflictInstructions = '';
+    if (context.conflicts && context.conflicts.length > 0) {
+        conflictInstructions = '\n INGREDIENT CONFLICTS DETECTED:\n';
+        context.conflicts.forEach(conflict => {
+            conflictInstructions += `- The user provided "${conflict.ingredient}" but selected "${conflict.filter}" filter.\n`;
+            conflictInstructions += `  YOU MUST substitute "${conflict.ingredient}" with: ${conflict.suggestion}\n`;
+        });
+        conflictInstructions += '\nIMPORTANT: Do NOT use the conflicting ingredients. Use the suggested substitutes instead.\n';
+    }
+
+    //  ENHANCED: Build a richer context block from the analyzed description
+    const preferenceGuides = [];
+    const prefs = context.preferences || {};
+    if (prefs.flavor_profile?.length > 0) {
+        preferenceGuides.push(`Flavor Profile: Emphasize ${prefs.flavor_profile.join(', ')} notes.`);
+    }
+    if (prefs.dish_type?.length > 0) {
+        preferenceGuides.push(`Dish Type: Should be a ${prefs.dish_type.join(' or ')}.`);
+    }
+    if (prefs.cuisine_style?.length > 0) {
+        preferenceGuides.push(`Cuisine Style: Should have a ${prefs.cuisine_style.join(' or ')} style.`);
+    }
+    if (prefs.positive_keywords?.length > 0) {
+        preferenceGuides.push(`Other Characteristics: ${prefs.positive_keywords.join(', ')}.`);
+    }
+    if (context.constraints?.time === 'quick') {
+        preferenceGuides.push('Time Constraint: Must be cookable in under 30 minutes.');
+    }
+    if (prefs.meal_type) {
+        preferenceGuides.push(`Meal Type: Suitable for ${prefs.meal_type}.`);
+    }
+
+    // Combine the original user note with the structured preferences
+    let descriptionContext = '';
+    if (description?.trim()) {
+        descriptionContext += `User's Raw Description: "${description}"\n`;
+    }
+    if (preferenceGuides.length > 0) {
+        descriptionContext += `Analyzed Preferences:\n- ${preferenceGuides.join('\n- ')}`;
+    }
+
 
     return `Generate ${count} creative Filipino recipes based on these ingredients: ${ingredients.join(', ')}.
 
-CONTEXT:
-${description ? `- User Note: "${description}"` : ''}
-${flavorGuide}
-${timeGuide}
-${mealGuide}
+USER REQUEST DETAILS:
+${descriptionContext || 'No specific preferences provided.'}
+${conflictInstructions}
 
 RECIPE GENERATION TIERS (generate one for each tier if count is 3):
-1.  **Strict Recipe**: Use ONLY the provided ingredients plus salt, pepper, oil, water, garlic, and onion.
-2.  **Flexible Recipe**: You may add up to 3 common Filipino pantry items (e.g., soy sauce, vinegar, fish sauce, sugar).
-3.  **Creative Recipe**: You can add several complementary ingredients for an authentic, complete dish.
+1.  **Strict Recipe*: Use ONLY the provided ingredients (with substitutions if conflicts exist).
+2.  **Flexible Recipe**: You may add up to 3 common Filipino pantry items that comply with dietary restrictions examples are: salt, pepper, oil, water, garlic, and onion. Substitute if conflicts exist.
+3.  **Creative Recipe**: You can add several complementary ingredients for an authentic, complete dish while respecting all dietary rules.
 
-${dietaryRules.length > 0 ? `DIETARY RULES (MANDATORY):\n- ${dietaryRules.join('\n- ')}` : ''}
+${allDietaryRules.length > 0 ? ` DIETARY RULES (MANDATORY - THESE OVERRIDE EVERYTHING):\n${allDietaryRules.map((rule, i) => `${i + 1}. ${rule}`).join('\n')}` : ''}
 
 OUTPUT FORMAT:
 - Your response MUST be a single, valid JSON array of recipe objects.
@@ -158,16 +270,17 @@ OUTPUT FORMAT:
 - Each recipe object must follow this exact structure:
 [{
   "title": "Recipe Name",
-  "ingredients": ["1 cup item (e.g., 250g chicken)"],
+  "ingredients": ["1 cup item (e.g., 250g chicken)", "NOTE: if substitutions were made, add a note like '(substituted for X due to Y filter)'"],
   "instructions": ["Step 1.", "Step 2.", "Step 3."],
-  "nutrition": "Calories: 450, Protein: 25g, Carbs: 40g, Fat: 15g",
+  "nutrition": "Calories: 450, Protein: 25g, Carbs: 40g, Fat: 15g, Sodium : 600mg, Sugar: 5g",
   "cookingTime": "30 min",
   "servings": 4
 }]`;
 };
 
+
 /**
- * 📊 AI-POWERED RESPONSE QUALITY SCORER
+ * AI-POWERED RESPONSE QUALITY SCORER
  * Uses an AI call to validate the generated recipe against the user's context.
  */
 const scoreRecipeQualityAI = async (recipe, context) => {
@@ -181,33 +294,44 @@ const scoreRecipeQualityAI = async (recipe, context) => {
         ${JSON.stringify(recipe, null, 2)}
 
         EVALUATION CRITERIA:
-        1.  **Ingredient Adherence**: Did it use the user's primary ingredients? (Weight: 40%)
-        2.  **Dietary Compliance**: Does it strictly follow all dietary rules (e.g., vegan, gluten-free)? (Weight: 30%)
-        3.  **Constraint Following**: Does it match the user's preferences for flavor, meal type, and cooking time? (Weight: 20%)
-        4.  **Authenticity & Completeness**: Is it a plausible Filipino recipe with complete information (nutrition, time, servings)? (Weight: 10%)
+        1.  **Ingredient Adherence**: Did it use the user's primary ingredients (or proper substitutes if conflicts exist)? (Weight: 30%)
+        2.  **Dietary Compliance**: Does it STRICTLY follow all dietary rules, allergies, and health restrictions? This is CRITICAL. (Weight: 40%)
+        3.  **Conflict Resolution**: If there were ingredient-filter conflicts, did it properly substitute the conflicting ingredients? (Weight: 15%)
+        4.  **Preference Matching**: Does it match the user's preferences for flavor, meal type, and cooking time? (Weight: 10%)
+        5.  **Authenticity & Completeness**: Is it a plausible Filipino recipe with complete information (nutrition, time, servings)? (Weight: 5%)
+
+        CRITICAL VIOLATIONS (automatic score below 30):
+        - Using shellfish when "Shellfish-Free" filter is active
+        - Using dairy when "Dairy-Free" filter is active
+        - Using gluten when "Gluten-Free" filter is active
+        - Using meat when "Vegan/Vegetarian" filter is active
+        - Any violation of explicitly stated dietary restrictions
 
         Respond ONLY with a JSON object in this format:
         {
           "score": <number_0_to_100>,
           "issues": ["A brief description of any issue found."],
-          "passed": <boolean>
+          "passed": <boolean>,
+          "substitutionsCorrect": <boolean>
         }
-        The "passed" key should be true if the score is 70 or above.
+
+        The "passed" key should be true if the score is 60 or above.
+        The "substitutionsCorrect" key should be true if all ingredient conflicts were properly resolved.
     `;
     const messages = [{ role: 'user', content: prompt }];
-    const aiResponse = await callAI(messages, 300, 0.1, true);
+    const aiResponse = await callAI(messages, 400, 0.1, true);
 
     try {
         return JSON.parse(aiResponse);
     } catch (e) {
         console.error("Failed to parse quality score from AI:", e);
-        return { score: 0, issues: ["Failed to parse AI evaluation."], passed: false };
+        return { score: 0, issues: ["Failed to parse AI evaluation."], passed: false, substitutionsCorrect: false };
     }
 };
 
 
 /**
- * 🚀 MAIN GENERATION FUNCTION
+ * MAIN GENERATION FUNCTION
  * Orchestrates the multi-step AI process.
  */
 export const generateAIRecipes = async (ingredients, filters = [], description = '', count = 3) => {
@@ -221,14 +345,19 @@ export const generateAIRecipes = async (ingredients, filters = [], description =
 
         console.log("1. Building smart context with AI...");
         const context = await buildSmartContextAI(ingredients, filters, description);
-        console.log("🧠 Smart Context:", JSON.stringify(context, null, 2));
+        console.log(" Smart Context:", JSON.stringify(context, null, 2));
+        
+        // Warn user about conflicts if detected
+        if (context.conflicts && context.conflicts.length > 0) {
+            console.warn(" Ingredient conflicts detected:", context.conflicts);
+        }
         
         console.log("2. Building compact prompt...");
         const prompt = buildCompactPrompt(ingredients, description, count, context);
         
         console.log("3. Calling Deepseek API for recipe generation...");
         const recipeMessages = [
-            { role: 'system', content: 'You are an expert Filipino chef from Angeles City, Pampanga. You strictly output valid JSON.' },
+            { role: 'system', content: 'You are an expert Filipino chef from Angeles City, Pampanga. You strictly output valid JSON and always respect dietary restrictions and substitution requirements.' },
             { role: 'user', content: prompt }
         ];
         // Use the main model for generation, which is a larger task
@@ -239,35 +368,49 @@ export const generateAIRecipes = async (ingredients, filters = [], description =
 
         console.log(`4. Scoring ${recipes.length} recipes with AI evaluator...`);
         const qualityPromises = recipes.map(recipe => 
-            scoreRecipeQualityAI(recipe, { ingredients, filters, description })
+            scoreRecipeQualityAI(recipe, { ingredients, filters, description, ...context })
             .then(quality => ({ recipe, quality })) // Combine recipe with its quality score
         );
         const qualityResults = await Promise.all(qualityPromises);
 
-        console.log('📊 AI Quality scores:', qualityResults.map(r => `${r.recipe.title}: ${r.quality.score}/100`));
+        console.log(' AI Quality scores:', qualityResults.map(r => `${r.recipe.title}: ${r.quality.score}/100${r.quality.substitutionsCorrect ? ' ✅' : ''}`));
         
         const goodRecipes = qualityResults.filter(r => r.quality.passed).map(r => r.recipe);
 
         if (goodRecipes.length > 0) {
-            return { success: true, data: goodRecipes, metadata: { context, qualityScores: qualityResults.map(r=>r.quality) } };
+            return { 
+                success: true, 
+                data: goodRecipes, 
+                metadata: { 
+                    context, 
+                    qualityScores: qualityResults.map(r => r.quality),
+                    conflictsDetected: context.conflicts?.length > 0,
+                    conflicts: context.conflicts
+                } 
+            };
         }
 
-        console.warn('⚠️ No recipes passed the quality threshold. Returning the highest-scoring ones.');
+        console.warn(' No recipes passed the quality threshold. Returning the highest-scoring ones.');
         const sortedResults = qualityResults.sort((a, b) => b.quality.score - a.quality.score);
         return { 
             success: true, 
             data: sortedResults.map(r => r.recipe), 
             warning: 'Generated recipes may not fully match requirements. Please review them carefully.',
-            metadata: { context, qualityScores: sortedResults.map(r=>r.quality) }
+            metadata: { 
+                context, 
+                qualityScores: sortedResults.map(r => r.quality),
+                conflictsDetected: context.conflicts?.length > 0,
+                conflicts: context.conflicts
+            }
         };
 
     } catch (error) {
-        console.error('❌ Error in generateAIRecipes:', error.message);
+        console.error(' Error in generateAIRecipes:', error.message);
         return { success: false, error: `Generation failed: ${error.message}`, data: [] };
     }
 };
 
-// --- HELPER FUNCTIONS (Largely Unchanged) ---
+// HELPER FUNCTIONS (Largely Unchanged)
 
 const parseAIResponse = (content) => {
     try {
@@ -292,7 +435,7 @@ const parseAIResponse = (content) => {
             };
         }).filter(recipe => recipe !== null);
     } catch (error) {
-        console.error('❌ Parse error:', error.message, "Content:", content);
+        console.error(' Parse error:', error.message, "Content:", content);
         return [];
     }
 };
@@ -312,4 +455,3 @@ export const generateCustomRecipe = async (ingredients, filters, description) =>
     const result = await generateAIRecipes(ingredients, filters, description, 1);
     return result.success && result.data.length > 0 ? result.data[0] : null;
 };
-

@@ -1,10 +1,8 @@
-// localRecipeService.js - FIXED: Proper multi-filter support with diet hierarchy
+// localRecipeService.js - ENHANCED: Advanced scoring system for thousands of recipes
 import localRecipes from "../data/recipes_meta.json";
 import { filterRecipesByDescription } from "./descriptionFilterService";
 
-/**
- * FIXED: Robust nutrition extraction with proper null handling
- */
+ // Robust nutrition extraction with proper null handling
 const getNumericNutrition = (recipe, nutrient) => {
   if (!recipe?.nutritional_info) return null;
   const value = recipe.nutritional_info[nutrient];
@@ -14,25 +12,106 @@ const getNumericNutrition = (recipe, nutrient) => {
 };
 
 /**
- * 🔥 FIXED: Proper multi-filter support with diet hierarchy and ALL filter validation
+ * Advanced ingredient matching with word boundaries
+ * Prevents false positives like "chicken" matching "chicken powder"
  */
+const ingredientMatches = (searchIngredient, recipeIngredient) => {
+  const normalized = searchIngredient.toLowerCase().trim();
+  const recipeNormalized = recipeIngredient.toLowerCase().trim();
+
+  // Direct substring match for phrases (e.g., "chicken breast")
+  if (normalized.includes(' ')) {
+    return recipeNormalized.includes(normalized);
+  }
+
+  // Single-word match using word boundaries
+  const escapedWord = normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(`\\b${escapedWord}\\b`, 'i');
+  if (regex.test(recipeNormalized)) return true;
+
+  // Exclude seasoning forms (these don't count as actual ingredients)
+  const seasoningWords = ['powder', 'extract', 'essence', 'flavoring'];
+  for (const seasoning of seasoningWords) {
+    if (recipeNormalized.includes(`${normalized} ${seasoning}`)) {
+      return false;
+    }
+  }
+
+  return false;
+};
+
+ // Scores recipes from 0-150 based on multiple factors
+const calculateLocalRelevanceScore = (recipe, searchIngredients) => {
+  const recipeIngredients = recipe.ingredients || [];
+  
+  // Count matches and track which ingredients matched
+  let matchCount = 0;
+  const matchedList = [];
+  
+  for (const searchIng of searchIngredients) {
+    const hasMatch = recipeIngredients.some(recipeIng => 
+      ingredientMatches(searchIng, recipeIng)
+    );
+    if (hasMatch) {
+      matchCount++;
+      matchedList.push(searchIng);
+    }
+  }
+  
+  // Calculate match percentage
+  const matchPercentage = searchIngredients.length > 0 
+    ? (matchCount / searchIngredients.length) * 100 
+    : 0;
+  
+  // Base score from percentage (0-100)
+  let score = matchPercentage;
+  
+  // Perfect match (uses ALL searched ingredients)
+  if (matchCount === searchIngredients.length && searchIngredients.length > 0) {
+    score += 20;
+  }
+  
+  // High percentage matches
+  if (matchPercentage >= 80) {
+    score += 10;
+  } else if (matchPercentage >= 60) {
+    score += 5;
+  }
+  
+  // Simple recipes (fewer ingredients = easier to make)
+  const totalIngredients = recipeIngredients.length;
+  if (totalIngredients > 0 && totalIngredients <= 8) {
+    score += 8;
+  } else if (totalIngredients <= 12) {
+    score += 4;
+  }
+  
+  return {
+    score: Math.min(score, 150), // Cap at 150
+    matchCount,
+    matchPercentage,
+    matchedList
+  };
+};
+
+ // Proper multi-filter support with diet hierarchy and ALL filter validation
 const applyDietaryFilters = (recipes, filters) => {
   if (!filters || filters.length === 0) return recipes;
 
-  console.log(`🔍 Applying ${filters.length} filters:`, filters);
+  console.log(` Applying ${filters.length} filters:`, filters);
 
   return recipes.filter(recipe => {
     const tags = Array.isArray(recipe.tags) ? recipe.tags : [];
     const tagsLower = tags.map(t => String(t).toLowerCase().replace(/[-\s]/g, ''));
     
-    // 🔥 CRITICAL: ALL filters must pass (use .every())
+    // ALL filters must pass (use .every())
     const passesAllFilters = filters.every(filter => {
       const filterNorm = filter.toLowerCase().replace(/[-\s]/g, '');
       
       // Quick tag match (most common case)
       if (tagsLower.includes(filterNorm)) return true;
 
-      // 🔥 DIET HIERARCHY: Handle overlapping diets correctly
+      // DIET HIERARCHY: Handle overlapping diets correctly
       switch (filterNorm) {
         // Vegan is most restrictive - must have vegan tag
         case 'vegan':
@@ -105,7 +184,7 @@ const applyDietaryFilters = (recipes, filters) => {
           }
           const passes = carbs <= 25;
           if (!passes) {
-            console.log(`❌ Recipe "${recipe.title}" rejected: carbs=${carbs}g (limit: 25g)`);
+            console.log(` Recipe "${recipe.title}" rejected: carbs=${carbs}g (limit: 25g)`);
           }
           return passes;
         }
@@ -117,7 +196,7 @@ const applyDietaryFilters = (recipes, filters) => {
           }
           const passes = fat <= 10;
           if (!passes) {
-            console.log(`❌ Recipe "${recipe.title}" rejected: fat=${fat}g (limit: 10g)`);
+            console.log(` Recipe "${recipe.title}" rejected: fat=${fat}g (limit: 10g)`);
           }
           return passes;
         }
@@ -129,7 +208,7 @@ const applyDietaryFilters = (recipes, filters) => {
           }
           const passes = sodium <= 400;
           if (!passes) {
-            console.log(`❌ Recipe "${recipe.title}" rejected: sodium=${sodium}mg (limit: 400mg)`);
+            console.log(` Recipe "${recipe.title}" rejected: sodium=${sodium}mg (limit: 400mg)`);
           }
           return passes;
         }
@@ -141,7 +220,7 @@ const applyDietaryFilters = (recipes, filters) => {
           }
           const passes = sugar <= 3;
           if (!passes) {
-            console.log(`❌ Recipe "${recipe.title}" rejected: sugar=${sugar}g (limit: 3g)`);
+            console.log(` Recipe "${recipe.title}" rejected: sugar=${sugar}g (limit: 3g)`);
           }
           return passes;
         }
@@ -153,7 +232,7 @@ const applyDietaryFilters = (recipes, filters) => {
           }
           const passes = sugar <= 8;
           if (!passes) {
-            console.log(`❌ Recipe "${recipe.title}" rejected: sugar=${sugar}g (limit: 8g)`);
+            console.log(` Recipe "${recipe.title}" rejected: sugar=${sugar}g (limit: 8g)`);
           }
           return passes;
         }
@@ -173,7 +252,7 @@ const applyDietaryFilters = (recipes, filters) => {
           const passes = sugarOk && carbsOk;
           
           if (!passes) {
-            console.log(`❌ Recipe "${recipe.title}" rejected: sugar=${sugar}g (limit: 8g), carbs=${carbs}g (limit: 30g)`);
+            console.log(` Recipe "${recipe.title}" rejected: sugar=${sugar}g (limit: 8g), carbs=${carbs}g (limit: 30g)`);
           }
           return passes;
         }
@@ -186,7 +265,7 @@ const applyDietaryFilters = (recipes, filters) => {
           }
           const passes = calories <= 300;
           if (!passes) {
-            console.log(`❌ Recipe "${recipe.title}" rejected: calories=${calories} (limit: 300)`);
+            console.log(` Recipe "${recipe.title}" rejected: calories=${calories} (limit: 300)`);
           }
           return passes;
         }
@@ -198,7 +277,7 @@ const applyDietaryFilters = (recipes, filters) => {
           }
           const passes = protein >= 20;
           if (!passes) {
-            console.log(`❌ Recipe "${recipe.title}" rejected: protein=${protein}g (minimum: 20g)`);
+            console.log(` Recipe "${recipe.title}" rejected: protein=${protein}g (minimum: 20g)`);
           }
           return passes;
         }
@@ -210,7 +289,7 @@ const applyDietaryFilters = (recipes, filters) => {
           }
           const passes = fiber >= 5;
           if (!passes) {
-            console.log(`❌ Recipe "${recipe.title}" rejected: fiber=${fiber}g (minimum: 5g)`);
+            console.log(` Recipe "${recipe.title}" rejected: fiber=${fiber}g (minimum: 5g)`);
           }
           return passes;
         }
@@ -226,9 +305,9 @@ const applyDietaryFilters = (recipes, filters) => {
 
     // Log results for debugging
     if (passesAllFilters) {
-      console.log(`✅ Recipe "${recipe.title}" passed ALL ${filters.length} filters`);
+      console.log(` Recipe "${recipe.title}" passed ALL ${filters.length} filters`);
     } else {
-      console.log(`❌ Recipe "${recipe.title}" failed at least one filter`);
+      console.log(` Recipe "${recipe.title}" failed at least one filter`);
     }
 
     return passesAllFilters;
@@ -236,7 +315,7 @@ const applyDietaryFilters = (recipes, filters) => {
 };
 
 /**
- * OPTIMIZED: Fast local recipe search with early returns
+ * 🔥 ENHANCED: Fast local recipe search with advanced relevance scoring
  */
 export const searchLocalRecipes = async (
   selectedIngredients,
@@ -244,28 +323,33 @@ export const searchLocalRecipes = async (
   description = ''
 ) => {
   try {
-    console.log('🔍 Starting local recipe search...');
+    console.log('🔍 Starting local recipe search with advanced scoring...');
     console.time('localSearch');
 
-    // OPTIMIZED: Single pass filter and count
+    // Step 1: Calculate advanced relevance scores for all matching recipes
     const ingredientFiltered = localRecipes.reduce((acc, recipe) => {
-      let matchCount = 0;
-      const ingredientsLower = recipe.ingredients.map(ing => ing.toLowerCase());
+      const relevance = calculateLocalRelevanceScore(recipe, selectedIngredients);
       
-      for (const sel of selectedIngredients) {
-        const selLower = sel.toLowerCase();
-        if (ingredientsLower.some(ing => ing.includes(selLower))) {
-          matchCount++;
-        }
-      }
-      
-      if (matchCount > 0) {
-        acc.push({ ...recipe, matchingIngredients: matchCount });
+      if (relevance.matchCount > 0) {
+        acc.push({
+          ...recipe,
+          matchingIngredients: relevance.matchCount,
+          matchPercentage: relevance.matchPercentage,
+          matchedIngredientsList: relevance.matchedList,
+          relevanceScore: relevance.score,
+          // Store for restoration after AI filtering
+          _originalMatchData: {
+            matchingIngredients: relevance.matchCount,
+            matchPercentage: relevance.matchPercentage,
+            matchedIngredientsList: relevance.matchedList,
+            relevanceScore: relevance.score
+          }
+        });
       }
       return acc;
     }, []);
 
-    console.log(`📊 Found ${ingredientFiltered.length} recipes with matching ingredients`);
+    console.log(` Found ${ingredientFiltered.length} recipes with matching ingredients`);
 
     // Step 2: Apply dietary filters (FIXED - now supports multiple filters properly)
     const beforeFilterCount = ingredientFiltered.length;
@@ -273,41 +357,74 @@ export const searchLocalRecipes = async (
       ? applyDietaryFilters(ingredientFiltered, selectedFilters)
       : ingredientFiltered;
 
-    console.log(`🏷️ ${dietaryFiltered.length}/${beforeFilterCount} recipes passed ALL ${selectedFilters.length} dietary filters`);
+    console.log(` ${dietaryFiltered.length}/${beforeFilterCount} recipes passed ALL ${selectedFilters.length} dietary filters`);
     if (selectedFilters.length > 0 && dietaryFiltered.length < beforeFilterCount) {
-      console.log(`🔬 Filtered out ${beforeFilterCount - dietaryFiltered.length} recipes that didn't meet ALL criteria`);
+      console.log(` Filtered out ${beforeFilterCount - dietaryFiltered.length} recipes that didn't meet ALL criteria`);
     }
 
-    // Step 3: Sort by matching ingredients (optimized)
-    dietaryFiltered.sort((a, b) => b.matchingIngredients - a.matchingIngredients);
+    // Step 3: ENHANCED SORTING: Multi-level prioritization
+    dietaryFiltered.sort((a, b) => {
+      // Primary sort: Relevance score (highest first)
+      if (Math.abs(b.relevanceScore - a.relevanceScore) > 5) {
+        return b.relevanceScore - a.relevanceScore;
+      }
+
+      // Secondary sort: Match percentage
+      if (Math.abs(b.matchPercentage - a.matchPercentage) > 10) {
+        return b.matchPercentage - a.matchPercentage;
+      }
+
+      // Tertiary sort: Absolute number of matching ingredients
+      if (b.matchingIngredients !== a.matchingIngredients) {
+        return b.matchingIngredients - a.matchingIngredients;
+      }
+
+      // Keep current order (stable sort)
+      return 0;
+    });
+
+    // Log top results for debugging
+    console.log(' TOP 5 LOCAL RECIPES BY RELEVANCE:');
+    dietaryFiltered.slice(0, 5).forEach((recipe, idx) => {
+      console.log(`${idx + 1}. "${recipe.title}"`);
+      console.log(`   - Relevance Score: ${Math.round(recipe.relevanceScore)}/150`);
+      console.log(`   - Ingredient Match: ${recipe.matchingIngredients}/${selectedIngredients.length} (${Math.round(recipe.matchPercentage)}%)`);
+      console.log(`   - Matched: ${recipe.matchedIngredientsList.join(', ')}`);
+    });
 
     // Step 4: Apply description filter if provided
     let filteredLocal = dietaryFiltered;
     if (description?.trim() && dietaryFiltered.length > 0) {
-      console.log('🔎 Applying description filter...');
+      console.log(' Applying description filter...');
       
-      // 🔥 CRITICAL: Store matchingIngredients before filtering
-      const matchingIngredientsMap = new Map(
-        dietaryFiltered.map(r => [r.id, r.matchingIngredients])
+      // CRITICAL: Store ALL match data before filtering
+      const matchDataMap = new Map(
+        dietaryFiltered.map(r => [r.id, {
+          matchingIngredients: r.matchingIngredients,
+          matchPercentage: r.matchPercentage,
+          matchedIngredientsList: r.matchedIngredientsList,
+          relevanceScore: r.relevanceScore,
+          _originalMatchData: r._originalMatchData
+        }])
       );
       
       filteredLocal = await filterRecipesByDescription(dietaryFiltered, description);
       
-      // 🔥 CRITICAL: Restore matchingIngredients after filtering
+      // CRITICAL: Restore ALL match data after filtering
       filteredLocal = filteredLocal.map(recipe => ({
         ...recipe,
-        matchingIngredients: matchingIngredientsMap.get(recipe.id) ?? recipe.matchingIngredients ?? 0
+        ...matchDataMap.get(recipe.id)
       }));
       
-      console.log(`🔎 ${filteredLocal.length} recipes matched description`);
+      console.log(`${filteredLocal.length} recipes matched description`);
     }
 
     console.timeEnd('localSearch');
-    console.log(`✅ Local search complete: ${filteredLocal.length} recipes found (passed ALL filters)`);
+    console.log(`Local search complete: ${filteredLocal.length} recipes found (with advanced scoring)`);
     return filteredLocal;
 
   } catch (error) {
-    console.error('❌ Error searching local recipes:', error);
+    console.error('Error searching local recipes:', error);
     return [];
   }
 };
@@ -338,11 +455,15 @@ export const getRandomLocalRecipes = (count = 5) => {
   return arr.slice(0, count);
 };
 
+ // Export scoring function for consistency with API service
+export const calculateIngredientMatchScore = calculateLocalRelevanceScore;
+
 const localRecipeService = {
   searchLocalRecipes,
   getLocalRecipeById,
   getAllLocalRecipes,
-  getRandomLocalRecipes
+  getRandomLocalRecipes,
+  calculateIngredientMatchScore
 };
 
 export default localRecipeService;
