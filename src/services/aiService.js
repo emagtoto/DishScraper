@@ -1,20 +1,10 @@
 import axios from 'axios';
 
 // CONFIGURATION
-const DEEPSEEK_API_KEY = process.env.REACT_APP_DEEPSEEK_API_KEY;
+// Remove API key - it's now handled by Netlify function
 const DEEPSEEK_API_URL = process.env.REACT_APP_DEEPSEEK_API_URL || '/.netlify/functions/deepseek';
 
 // AI HELPER FUNCTION
-
-/**
- * A centralized function to call the AI model.
- * This reduces code duplication and manages API interaction with retries.
- * @param {Array<object>} messages - The message history for the chat completion.
- * @param {number} max_tokens - The maximum number of tokens for the response.
- * @param {number} temperature - The creativity of the response.
- * @param {boolean} isJson - Whether to instruct the model to return JSON.
- * @returns {Promise<string>} The AI's response content.
- */
 const callAI = async (messages, max_tokens = 500, temperature = 0.1, isJson = true) => {
     if (isJson) {
         const hasJsonInstruction = messages.some(m => m.role === 'system' && m.content.includes('JSON'));
@@ -39,40 +29,33 @@ const callAI = async (messages, max_tokens = 500, temperature = 0.1, isJson = tr
                 },
                 {
                     headers: {
-                        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+                        // ❌ REMOVED: 'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
                         'Content-Type': 'application/json'
                     },
-                    timeout: 35000 // Increased timeout to 35 seconds
+                    timeout: 35000
                 }
             );
-            return response.data.choices[0].message.content; // Success, exit loop
+            return response.data.choices[0].message.content;
         } catch (error) {
             lastError = error;
             const isTimeout = error.code === 'ECONNABORTED';
 
             if (isTimeout && attempt < maxRetries) {
                 console.warn(`⏱ AI Helper call timed out. Attempt ${attempt + 1}/${maxRetries + 1}. Retrying...`);
-                await new Promise(resolve => setTimeout(resolve, 1500 * (attempt + 1))); // Wait before retrying
+                await new Promise(resolve => setTimeout(resolve, 1500 * (attempt + 1)));
             } else {
-                console.error(` AI Helper Call Error (Attempt ${attempt + 1}):`, error.response ? error.response.data : error.message);
-                break; // Break on non-timeout errors or on the last attempt
+                console.error(`❌ AI Helper Call Error (Attempt ${attempt + 1}):`, error.response ? error.response.data : error.message);
+                break;
             }
         }
     }
 
-    // If the loop completes without returning, all retries have failed.
-    console.error(' AI Helper failed after all attempts.', lastError);
+    console.error('❌ AI Helper failed after all attempts.', lastError);
     throw new Error(`An AI sub-task failed after ${maxRetries + 1} attempts.`);
 };
 
-
 // --- CORE AI-DRIVEN FUNCTIONS ---
 
-/**
- * AI-POWERED SMART CONTEXT BUILDER
- * Uses an AI call to analyze the user's input and create a structured context.
- * This replaces the static keyword lists for categorization.
- */
 const buildSmartContextAI = async (ingredients, filters, description) => {
     const prompt = `   
         You are a culinary data analyst. Your job is to meticulously analyze the user's recipe request and return a structured JSON object.
@@ -124,7 +107,6 @@ const buildSmartContextAI = async (ingredients, filters, description) => {
     const aiResponse = await callAI(messages, 600, 0.1, true);
 
     try {
-        // Add a default structure to merge with the AI response for safety
         const baseContext = {
             ingredients: { proteins: [], vegetables: [], carbs: [], condiments: [], primary: [] },
             constraints: { dietary: [], allergies: [], health: [], time: null },
@@ -132,11 +114,9 @@ const buildSmartContextAI = async (ingredients, filters, description) => {
             preferences: { flavor_profile: [], meal_type: null, dish_type: [], cuisine_style: [], positive_keywords: [] }
         };
         const parsedContext = JSON.parse(aiResponse);
-        // Deep merge to ensure all keys exist
         return { ...baseContext, ...parsedContext };
     } catch (e) {
         console.error("Failed to parse context from AI:", e);
-        // Fallback to a very basic context if parsing fails
         return {
             ingredients: { primary: ingredients },
             constraints: { dietary: [], allergies: [], health: [] },
@@ -146,15 +126,9 @@ const buildSmartContextAI = async (ingredients, filters, description) => {
     }
 };
 
-/**
- *  COMPACT PROMPT BUILDER
- * Creates the main prompt for recipe generation based on the AI-generated context.
- */
 const buildCompactPrompt = (ingredients, description, count, context) => {
-    // Build comprehensive dietary rules from all constraint types
     const allDietaryRules = [];
     
-    // Process dietary preferences
     if (context.constraints?.dietary?.length > 0) {
         context.constraints.dietary.forEach(d => {
             const dLower = d.toLowerCase();
@@ -172,7 +146,6 @@ const buildCompactPrompt = (ingredients, description, count, context) => {
         });
     }
     
-    // Process allergy restrictions
     if (context.constraints?.allergies?.length > 0) {
         context.constraints.allergies.forEach(a => {
             const aLower = a.toLowerCase();
@@ -194,7 +167,6 @@ const buildCompactPrompt = (ingredients, description, count, context) => {
         });
     }
     
-    // Process health restrictions
     if (context.constraints?.health?.length > 0) {
         context.constraints.health.forEach(h => {
             const hLower = h.toLowerCase();
@@ -208,10 +180,9 @@ const buildCompactPrompt = (ingredients, description, count, context) => {
         });
     }
 
-    // Handle ingredient conflicts with substitution instructions
     let conflictInstructions = '';
     if (context.conflicts && context.conflicts.length > 0) {
-        conflictInstructions = '\n INGREDIENT CONFLICTS DETECTED:\n';
+        conflictInstructions = '\n⚠ INGREDIENT CONFLICTS DETECTED:\n';
         context.conflicts.forEach(conflict => {
             conflictInstructions += `- The user provided "${conflict.ingredient}" but selected "${conflict.filter}" filter.\n`;
             conflictInstructions += `  YOU MUST substitute "${conflict.ingredient}" with: ${conflict.suggestion}\n`;
@@ -219,7 +190,6 @@ const buildCompactPrompt = (ingredients, description, count, context) => {
         conflictInstructions += '\nIMPORTANT: Do NOT use the conflicting ingredients. Use the suggested substitutes instead.\n';
     }
 
-    //  ENHANCED: Build a richer context block from the analyzed description
     const preferenceGuides = [];
     const prefs = context.preferences || {};
     if (prefs.flavor_profile?.length > 0) {
@@ -241,7 +211,6 @@ const buildCompactPrompt = (ingredients, description, count, context) => {
         preferenceGuides.push(`Meal Type: Suitable for ${prefs.meal_type}.`);
     }
 
-    // Combine the original user note with the structured preferences
     let descriptionContext = '';
     if (description?.trim()) {
         descriptionContext += `User's Raw Description: "${description}"\n`;
@@ -250,7 +219,6 @@ const buildCompactPrompt = (ingredients, description, count, context) => {
         descriptionContext += `Analyzed Preferences:\n- ${preferenceGuides.join('\n- ')}`;
     }
 
-
     return `Generate ${count} creative Filipino recipes based on these ingredients: ${ingredients.join(', ')}.
 
 USER REQUEST DETAILS:
@@ -258,11 +226,11 @@ ${descriptionContext || 'No specific preferences provided.'}
 ${conflictInstructions}
 
 RECIPE GENERATION TIERS (generate one for each tier if count is 3):
-1.  **Strict Recipe*: Use ONLY the provided ingredients (with substitutions if conflicts exist).
-2.  **Flexible Recipe**: You may add up to 3 common Filipino pantry items that comply with dietary restrictions examples are: salt, pepper, oil, water, garlic, and onion. Substitute if conflicts exist.
-3.  **Creative Recipe**: You can add several complementary ingredients for an authentic, complete dish while respecting all dietary rules.
+1. **Strict Recipe**: Use ONLY the provided ingredients (with substitutions if conflicts exist).
+2. **Flexible Recipe**: You may add up to 3 common Filipino pantry items that comply with dietary restrictions examples are: salt, pepper, oil, water, garlic, and onion. Substitute if conflicts exist.
+3. **Creative Recipe**: You can add several complementary ingredients for an authentic, complete dish while respecting all dietary rules.
 
-${allDietaryRules.length > 0 ? ` DIETARY RULES (MANDATORY - THESE OVERRIDE EVERYTHING):\n${allDietaryRules.map((rule, i) => `${i + 1}. ${rule}`).join('\n')}` : ''}
+${allDietaryRules.length > 0 ? `⚠ DIETARY RULES (MANDATORY - THESE OVERRIDE EVERYTHING):\n${allDietaryRules.map((rule, i) => `${i + 1}. ${rule}`).join('\n')}` : ''}
 
 OUTPUT FORMAT:
 - Your response MUST be a single, valid JSON array of recipe objects.
@@ -272,17 +240,12 @@ OUTPUT FORMAT:
   "title": "Recipe Name",
   "ingredients": ["1 cup item (e.g., 250g chicken)", "NOTE: if substitutions were made, add a note like '(substituted for X due to Y filter)'"],
   "instructions": ["Step 1.", "Step 2.", "Step 3."],
-  "nutrition": "Calories: 450, Protein: 25g, Carbs: 40g, Fat: 15g, Sodium : 600mg, Sugar: 5g",
+  "nutrition": "Calories: 450, Protein: 25g, Carbs: 40g, Fat: 15g, Sodium: 600mg, Sugar: 5g",
   "cookingTime": "30 min",
   "servings": 4
 }]`;
 };
 
-
-/**
- * AI-POWERED RESPONSE QUALITY SCORER
- * Uses an AI call to validate the generated recipe against the user's context.
- */
 const scoreRecipeQualityAI = async (recipe, context) => {
     const prompt = `
         You are a meticulous recipe quality evaluator. Score the generated recipe from 0 to 100 based on how well it meets the user's original request.
@@ -294,11 +257,11 @@ const scoreRecipeQualityAI = async (recipe, context) => {
         ${JSON.stringify(recipe, null, 2)}
 
         EVALUATION CRITERIA:
-        1.  **Ingredient Adherence**: Did it use the user's primary ingredients (or proper substitutes if conflicts exist)? (Weight: 30%)
-        2.  **Dietary Compliance**: Does it STRICTLY follow all dietary rules, allergies, and health restrictions? This is CRITICAL. (Weight: 40%)
-        3.  **Conflict Resolution**: If there were ingredient-filter conflicts, did it properly substitute the conflicting ingredients? (Weight: 15%)
-        4.  **Preference Matching**: Does it match the user's preferences for flavor, meal type, and cooking time? (Weight: 10%)
-        5.  **Authenticity & Completeness**: Is it a plausible Filipino recipe with complete information (nutrition, time, servings)? (Weight: 5%)
+        1. **Ingredient Adherence**: Did it use the user's primary ingredients (or proper substitutes if conflicts exist)? (Weight: 30%)
+        2. **Dietary Compliance**: Does it STRICTLY follow all dietary rules, allergies, and health restrictions? This is CRITICAL. (Weight: 40%)
+        3. **Conflict Resolution**: If there were ingredient-filter conflicts, did it properly substitute the conflicting ingredients? (Weight: 15%)
+        4. **Preference Matching**: Does it match the user's preferences for flavor, meal type, and cooking time? (Weight: 10%)
+        5. **Authenticity & Completeness**: Is it a plausible Filipino recipe with complete information (nutrition, time, servings)? (Weight: 5%)
 
         CRITICAL VIOLATIONS (automatic score below 30):
         - Using shellfish when "Shellfish-Free" filter is active
@@ -329,27 +292,21 @@ const scoreRecipeQualityAI = async (recipe, context) => {
     }
 };
 
-
-/**
- * MAIN GENERATION FUNCTION
- * Orchestrates the multi-step AI process.
- */
 export const generateAIRecipes = async (ingredients, filters = [], description = '', count = 3) => {
     try {
         if (!ingredients || ingredients.length === 0) {
             return { success: false, error: 'No ingredients provided', data: [] };
         }
         if (!isValidDescription(description).valid) {
-             return { success: false, error: 'Invalid description provided.', data: [] };
+            return { success: false, error: 'Invalid description provided.', data: [] };
         }
 
         console.log("1. Building smart context with AI...");
         const context = await buildSmartContextAI(ingredients, filters, description);
-        console.log(" Smart Context:", JSON.stringify(context, null, 2));
+        console.log("✅ Smart Context:", JSON.stringify(context, null, 2));
         
-        // Warn user about conflicts if detected
         if (context.conflicts && context.conflicts.length > 0) {
-            console.warn(" Ingredient conflicts detected:", context.conflicts);
+            console.warn("⚠ Ingredient conflicts detected:", context.conflicts);
         }
         
         console.log("2. Building compact prompt...");
@@ -360,7 +317,6 @@ export const generateAIRecipes = async (ingredients, filters = [], description =
             { role: 'system', content: 'You are an expert Filipino chef from Angeles City, Pampanga. You strictly output valid JSON and always respect dietary restrictions and substitution requirements.' },
             { role: 'user', content: prompt }
         ];
-        // Use the main model for generation, which is a larger task
         const recipeContent = await callAI(recipeMessages, 2048, 0.3, true);
         const recipes = parseAIResponse(recipeContent);
 
@@ -369,11 +325,11 @@ export const generateAIRecipes = async (ingredients, filters = [], description =
         console.log(`4. Scoring ${recipes.length} recipes with AI evaluator...`);
         const qualityPromises = recipes.map(recipe => 
             scoreRecipeQualityAI(recipe, { ingredients, filters, description, ...context })
-            .then(quality => ({ recipe, quality })) // Combine recipe with its quality score
+            .then(quality => ({ recipe, quality }))
         );
         const qualityResults = await Promise.all(qualityPromises);
 
-        console.log(' AI Quality scores:', qualityResults.map(r => `${r.recipe.title}: ${r.quality.score}/100${r.quality.substitutionsCorrect ? ' ✅' : ''}`));
+        console.log('✅ AI Quality scores:', qualityResults.map(r => `${r.recipe.title}: ${r.quality.score}/100${r.quality.substitutionsCorrect ? ' ✅' : ''}`));
         
         const goodRecipes = qualityResults.filter(r => r.quality.passed).map(r => r.recipe);
 
@@ -390,7 +346,7 @@ export const generateAIRecipes = async (ingredients, filters = [], description =
             };
         }
 
-        console.warn(' No recipes passed the quality threshold. Returning the highest-scoring ones.');
+        console.warn('⚠ No recipes passed the quality threshold. Returning the highest-scoring ones.');
         const sortedResults = qualityResults.sort((a, b) => b.quality.score - a.quality.score);
         return { 
             success: true, 
@@ -405,12 +361,10 @@ export const generateAIRecipes = async (ingredients, filters = [], description =
         };
 
     } catch (error) {
-        console.error(' Error in generateAIRecipes:', error.message);
+        console.error('❌ Error in generateAIRecipes:', error.message);
         return { success: false, error: `Generation failed: ${error.message}`, data: [] };
     }
 };
-
-// HELPER FUNCTIONS (Largely Unchanged)
 
 const parseAIResponse = (content) => {
     try {
@@ -435,7 +389,7 @@ const parseAIResponse = (content) => {
             };
         }).filter(recipe => recipe !== null);
     } catch (error) {
-        console.error(' Parse error:', error.message, "Content:", content);
+        console.error('❌ Parse error:', error.message, "Content:", content);
         return [];
     }
 };

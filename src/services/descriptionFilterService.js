@@ -1,7 +1,6 @@
 import axios from 'axios';
 
 // CONFIGURATION
-const DEEPSEEK_API_KEY = process.env.REACT_APP_DEEPSEEK_API_KEY;
 const DEEPSEEK_API_URL = process.env.REACT_APP_DEEPSEEK_API_URL || '/.netlify/functions/deepseek';
 const DEBOUNCE_DELAY = 400; // ms
 
@@ -44,10 +43,10 @@ const roundIfNumber = (v) => (typeof v === 'number' ? Math.round(v) : v);
 const simpleKeywordFilter = (recipes, description) => {
     const keywords = description.toLowerCase().split(/\s+/).filter(w => w.length > 2);
     const fullQuery = description.toLowerCase().trim();
-    
+
     // Detect if this is a "style" or "dish" query (looking for main recipes, not ingredients)
     const isStyleQuery = /\b(style|dish|recipe|food)\b/i.test(description);
-    
+
     // Score each recipe based on match quality
     const scoredRecipes = recipes.map(recipe => {
         const title = (recipe.title || recipe.name || '').toLowerCase();
@@ -55,19 +54,19 @@ const simpleKeywordFilter = (recipes, description) => {
         const tags = (recipe.tags || []).join(' ').toLowerCase();
         const cuisines = (recipe.cuisines || []).join(' ').toLowerCase();
         const dishTypes = (recipe.dishTypes || []).join(' ').toLowerCase();
-        const ingredients = (recipe.ingredients || []).map(ing => 
+        const ingredients = (recipe.ingredients || []).map(ing =>
             typeof ing === 'string' ? ing : (ing?.name || ing?.original || '')
         ).join(' ').toLowerCase();
-        
+
         const metadataText = [tags, cuisines, dishTypes].join(' ');
-        
+
         let score = 0;
-        
+
         // Extract main keyword (remove "style", "dish", "recipe" words)
-        const mainKeywords = keywords.filter(kw => 
+        const mainKeywords = keywords.filter(kw =>
             !['style', 'dish', 'recipe', 'food', 'with'].includes(kw)
         );
-        
+
         // Highest priority: exact phrase match in title (word boundaries)
         const titleWords = title.split(/\s+/);
         if (titleWords.includes(fullQuery)) {
@@ -75,7 +74,7 @@ const simpleKeywordFilter = (recipes, description) => {
         } else if (title.includes(fullQuery)) {
             score += 80;
         }
-        
+
         // For style queries, heavily prioritize title matches
         if (isStyleQuery) {
             const titleHasMainKeyword = mainKeywords.some(kw => {
@@ -83,21 +82,21 @@ const simpleKeywordFilter = (recipes, description) => {
                 const regex = new RegExp(`\\b${kw}\\b`, 'i');
                 return regex.test(title);
             });
-            
+
             if (titleHasMainKeyword) {
                 score += 70; // Strong boost for title match in style queries
             }
-            
+
             // Penalize recipes where keyword only appears in ingredients for style queries
-            const onlyInIngredients = mainKeywords.some(kw => 
+            const onlyInIngredients = mainKeywords.some(kw =>
                 ingredients.includes(kw) && !title.includes(kw) && !summary.includes(kw)
             );
-            
+
             if (onlyInIngredients && !titleHasMainKeyword) {
                 score -= 50; // Heavy penalty - this is probably just an ingredient
             }
         }
-        
+
         // High priority: all keywords in title
         const titleMatches = mainKeywords.filter(kw => title.includes(kw)).length;
         if (titleMatches === mainKeywords.length && mainKeywords.length > 0) {
@@ -105,21 +104,21 @@ const simpleKeywordFilter = (recipes, description) => {
         } else if (titleMatches > 0) {
             score += titleMatches * 20;
         }
-        
+
         // Medium priority: matches in summary/description
         const summaryMatches = mainKeywords.filter(kw => summary.includes(kw)).length;
         score += summaryMatches * 10;
-        
+
         // Lower priority: matches in cuisines/tags/dishTypes
         const metadataMatches = mainKeywords.filter(kw => metadataText.includes(kw)).length;
         score += metadataMatches * 5;
-        
+
         // Lowest priority: matches in ingredients only (often false positives)
-        const ingredientMatches = mainKeywords.filter(kw => 
+        const ingredientMatches = mainKeywords.filter(kw =>
             ingredients.includes(kw) && !title.includes(kw) && !summary.includes(kw)
         ).length;
         score += ingredientMatches * 2;
-        
+
         // Additional penalty for recipes where keyword appears as part of another word in ingredients
         // e.g., "adobo sauce" vs "Adobo" as main dish
         if (isStyleQuery) {
@@ -130,10 +129,10 @@ const simpleKeywordFilter = (recipes, description) => {
                 }
             });
         }
-        
+
         return { recipe, score };
     });
-    
+
     // Filter out recipes with score <= 0 (no good matches or penalized) and sort by score
     return scoredRecipes
         .filter(item => item.score > 0)
@@ -145,7 +144,7 @@ const simpleKeywordFilter = (recipes, description) => {
 const isSimpleQuery = (description) => {
     const normalized = description.toLowerCase().trim();
     const wordCount = normalized.split(/\s+/).length;
-    
+
     // Simple if: 1-3 words and no complex patterns
     const complexPatterns = [
         /\d+\s*(calorie|minute|min|gram|g|mg|serving)/i,
@@ -153,19 +152,15 @@ const isSimpleQuery = (description) => {
         /\b(without|no|exclude|avoid|except)\b/i,
         /\b(vegan|vegetarian|gluten-free|dairy-free|keto|paleo)\b/i,
     ];
-    
+
     const hasComplexPattern = complexPatterns.some(pattern => pattern.test(normalized));
-    
+
     // Simple queries: single dish names, cuisine + dish, etc.
     return wordCount <= 3 && !hasComplexPattern;
 };
 
 // AI CALL (robust wrapper)
 const callAI = async (messages, max_tokens = 1200, temperature = 0.1, isJson = true) => {
-    if (!DEEPSEEK_API_KEY) {
-        console.error("API Key is missing. Skipping AI call.");
-        throw new Error("AI service is unavailable due to missing API key.");
-    }
 
     if (isJson && messages[0]?.role !== 'system') {
         messages.unshift({
@@ -184,7 +179,7 @@ const callAI = async (messages, max_tokens = 1200, temperature = 0.1, isJson = t
                 max_tokens,
                 response_format: { type: 'json_object' }
             }, {
-                headers: { 'Authorization': `Bearer ${DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json' },
                 timeout: 30000,
             });
             return response.data.choices[0].message.content;
@@ -386,14 +381,14 @@ const buildCompressedRecipeLines = (recipes) => {
         const tags = (recipe.tags || []).slice(0, 6).map(t => t.toString().replace(/\|/g, ',')).join(',');
         const cuisines = (recipe.cuisines || []).slice(0, 3).join(',');
         const dishTypes = (recipe.dishTypes || []).slice(0, 3).join(',');
-        
+
         const ingredientsPreview = (recipe.ingredients || []).slice(0, 6).map(ing => {
             if (!ing) return '';
             if (typeof ing === 'string') return ing.split(',')[0];
             if (typeof ing === 'object' && (ing.name || ing.original)) return (ing.name || ing.original).split(',')[0];
             return '';
         }).filter(Boolean).join(',');
-        
+
         const nutrition = recipe.nutritional_info || recipe.nutrition || {};
         const cal = roundIfNumber(nutrition.calories || nutrition.cal || nutrition.kcal) || '';
         const prot = roundIfNumber(nutrition.protein || nutrition.protein_g) || '';
@@ -451,7 +446,7 @@ Respond ONLY with JSON.
     const maxTokens = 1400;
     const aiResponse = await callAI(messages, maxTokens, 0.1, true);
     const parsed = safeParseJson(aiResponse);
-    
+
     if (!parsed || !Array.isArray(parsed.ranked_matches)) {
         console.error('Ranker AI returned invalid JSON:', aiResponse);
         // Fallback: return original order
@@ -464,7 +459,7 @@ Respond ONLY with JSON.
     // If AI returned fewer recipes than available, append the rest
     const includedIds = new Set(rankedRecipes.map(r => r.id || r.recipeId));
     const remaining = limited.filter(r => !includedIds.has(r.id || r.recipeId));
-    
+
     return [...rankedRecipes, ...remaining];
 };
 
@@ -521,7 +516,7 @@ export const filterRecipesByDescription = (recipes, description) => {
 
                 const recipesToRank = preFiltered.slice(0, MAX_AI_RANK);
                 const ranked = await rankAllInOneCall(recipesToRank, analysis);
-                
+
                 const duration = (performance.now() - overallStart).toFixed(2);
                 console.log(`AI filtering complete: ${ranked.length} recipes in ${duration}ms`);
 
