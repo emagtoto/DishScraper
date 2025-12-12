@@ -3,6 +3,12 @@
   publish = "build"
   functions = "netlify/functions"
 
+[functions]
+  node_bundler = "esbuild"
+  # Increase timeout to 26 seconds (max for free tier)
+  [functions."deepseek"]
+    timeout = 26
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
