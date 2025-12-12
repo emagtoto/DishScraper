@@ -9,6 +9,10 @@
 # Production
 /build
 
+# Backend
+backend/.env
+backend/node_modules/
+
 # Misc
 .DS_Store
 .env
@@ -33,5 +37,4 @@ firebase-debug.log
 *.swo
 *~
 
-.netlify
 .env.local
