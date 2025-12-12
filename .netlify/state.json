@@ -1,0 +1,20 @@
+{
+	"geolocation": {
+		"data": {
+			"city": "Clark",
+			"country": {
+				"code": "PH",
+				"name": "Philippines"
+			},
+			"subdivision": {
+				"code": "03",
+				"name": "Central Luzon"
+			},
+			"timezone": "Asia/Manila",
+			"latitude": 15.0667,
+			"longitude": 120.6432,
+			"postalCode": "2023"
+		},
+		"timestamp": 1765431803132
+	}
+}
