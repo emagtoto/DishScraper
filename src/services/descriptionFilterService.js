@@ -1,7 +1,8 @@
 import axios from 'axios';
 
 // CONFIGURATION
-const DEEPSEEK_API_URL = process.env.REACT_APP_DEEPSEEK_API_URL || '/.netlify/functions/deepseek';
+const DEEPSEEK_API_URL = process.env.REACT_APP_DEEPSEEK_API_URL;
+
 const DEBOUNCE_DELAY = 400; // ms
 
 // TUNABLES
@@ -43,11 +44,8 @@ const roundIfNumber = (v) => (typeof v === 'number' ? Math.round(v) : v);
 const simpleKeywordFilter = (recipes, description) => {
     const keywords = description.toLowerCase().split(/\s+/).filter(w => w.length > 2);
     const fullQuery = description.toLowerCase().trim();
-
-    // Detect if this is a "style" or "dish" query (looking for main recipes, not ingredients)
     const isStyleQuery = /\b(style|dish|recipe|food)\b/i.test(description);
 
-    // Score each recipe based on match quality
     const scoredRecipes = recipes.map(recipe => {
         const title = (recipe.title || recipe.name || '').toLowerCase();
         const summary = (recipe.summary || recipe.description || '').toLowerCase();
@@ -59,15 +57,12 @@ const simpleKeywordFilter = (recipes, description) => {
         ).join(' ').toLowerCase();
 
         const metadataText = [tags, cuisines, dishTypes].join(' ');
-
         let score = 0;
 
-        // Extract main keyword (remove "style", "dish", "recipe" words)
         const mainKeywords = keywords.filter(kw =>
             !['style', 'dish', 'recipe', 'food', 'with'].includes(kw)
         );
 
-        // Highest priority: exact phrase match in title (word boundaries)
         const titleWords = title.split(/\s+/);
         if (titleWords.includes(fullQuery)) {
             score += 100;
@@ -75,29 +70,25 @@ const simpleKeywordFilter = (recipes, description) => {
             score += 80;
         }
 
-        // For style queries, heavily prioritize title matches
         if (isStyleQuery) {
             const titleHasMainKeyword = mainKeywords.some(kw => {
-                // Check if keyword appears as a standalone word in title
                 const regex = new RegExp(`\\b${kw}\\b`, 'i');
                 return regex.test(title);
             });
 
             if (titleHasMainKeyword) {
-                score += 70; // Strong boost for title match in style queries
+                score += 70;
             }
 
-            // Penalize recipes where keyword only appears in ingredients for style queries
             const onlyInIngredients = mainKeywords.some(kw =>
                 ingredients.includes(kw) && !title.includes(kw) && !summary.includes(kw)
             );
 
             if (onlyInIngredients && !titleHasMainKeyword) {
-                score -= 50; // Heavy penalty - this is probably just an ingredient
+                score -= 50;
             }
         }
 
-        // High priority: all keywords in title
         const titleMatches = mainKeywords.filter(kw => title.includes(kw)).length;
         if (titleMatches === mainKeywords.length && mainKeywords.length > 0) {
             score += 50;
@@ -105,27 +96,22 @@ const simpleKeywordFilter = (recipes, description) => {
             score += titleMatches * 20;
         }
 
-        // Medium priority: matches in summary/description
         const summaryMatches = mainKeywords.filter(kw => summary.includes(kw)).length;
         score += summaryMatches * 10;
 
-        // Lower priority: matches in cuisines/tags/dishTypes
         const metadataMatches = mainKeywords.filter(kw => metadataText.includes(kw)).length;
         score += metadataMatches * 5;
 
-        // Lowest priority: matches in ingredients only (often false positives)
         const ingredientMatches = mainKeywords.filter(kw =>
             ingredients.includes(kw) && !title.includes(kw) && !summary.includes(kw)
         ).length;
         score += ingredientMatches * 2;
 
-        // Additional penalty for recipes where keyword appears as part of another word in ingredients
-        // e.g., "adobo sauce" vs "Adobo" as main dish
         if (isStyleQuery) {
             mainKeywords.forEach(kw => {
                 const ingredientMatches = ingredients.match(new RegExp(`\\b${kw}\\s+(sauce|marinade|paste|seasoning|powder)`, 'gi'));
                 if (ingredientMatches && !title.includes(kw)) {
-                    score -= 30; // This is likely using keyword as an ingredient, not the main dish
+                    score -= 30;
                 }
             });
         }
@@ -133,19 +119,17 @@ const simpleKeywordFilter = (recipes, description) => {
         return { recipe, score };
     });
 
-    // Filter out recipes with score <= 0 (no good matches or penalized) and sort by score
     return scoredRecipes
         .filter(item => item.score > 0)
         .sort((a, b) => b.score - a.score)
         .map(item => item.recipe);
 };
 
-// CHECK IF QUERY IS SIMPLE (just a dish name or cuisine)
+// CHECK IF QUERY IS SIMPLE
 const isSimpleQuery = (description) => {
     const normalized = description.toLowerCase().trim();
     const wordCount = normalized.split(/\s+/).length;
 
-    // Simple if: 1-3 words and no complex patterns
     const complexPatterns = [
         /\d+\s*(calorie|minute|min|gram|g|mg|serving)/i,
         /\b(low|high|max|min|under|over|less than|more than)\b/i,
@@ -154,14 +138,11 @@ const isSimpleQuery = (description) => {
     ];
 
     const hasComplexPattern = complexPatterns.some(pattern => pattern.test(normalized));
-
-    // Simple queries: single dish names, cuisine + dish, etc.
     return wordCount <= 3 && !hasComplexPattern;
 };
 
-// AI CALL (robust wrapper)
+// AI CALL with robust response handling
 const callAI = async (messages, max_tokens = 1200, temperature = 0.1, isJson = true) => {
-
     if (isJson && messages[0]?.role !== 'system') {
         messages.unshift({
             role: 'system',
@@ -182,9 +163,34 @@ const callAI = async (messages, max_tokens = 1200, temperature = 0.1, isJson = t
                 headers: { 'Content-Type': 'application/json' },
                 timeout: 30000,
             });
-            return response.data.choices[0].message.content;
+
+            // ✅ Handle different response structures
+            let content = null;
+            
+            if (response.data?.choices?.[0]?.message?.content) {
+                content = response.data.choices[0].message.content;
+            } else if (response.data?.content) {
+                content = response.data.content;
+            } else if (response.data?.message?.content) {
+                content = response.data.message.content;
+            } else if (typeof response.data === 'string') {
+                content = response.data;
+            } else if (response.data?.data?.choices?.[0]?.message?.content) {
+                content = response.data.data.choices[0].message.content;
+            } else {
+                console.error('Unexpected API response structure:', response.data);
+                throw new Error('Unexpected API response structure');
+            }
+
+            if (!content) {
+                throw new Error('API returned empty content');
+            }
+
+            return content;
+
         } catch (error) {
-            const errorStatus = error.response ? error.response.status : null;
+            const errorStatus = error.response?.status;
+            
             if (errorStatus === 429) {
                 console.error("AI Call Error: Rate limit exceeded (429).");
                 throw new Error("AI service rate limited");
@@ -198,6 +204,7 @@ const callAI = async (messages, max_tokens = 1200, temperature = 0.1, isJson = t
                 await new Promise(resolve => setTimeout(resolve, 1500 * (attempt + 1)));
                 continue;
             }
+            
             const details = error.response ? JSON.stringify(error.response.data) : error.message;
             console.error(`AI Call Error: ${details}`);
             throw new Error('AI call failed: ' + (error.message || details));
@@ -252,7 +259,6 @@ Only add these fields if explicitly mentioned:
     const parsed = safeParseJson(aiResponse);
     if (!parsed) {
         console.error('Analysis AI returned unparseable JSON:', aiResponse);
-        // Return minimal analysis instead of throwing
         return { general_criteria: { positive_keywords: [description.toLowerCase().trim()] } };
     }
 
@@ -262,11 +268,10 @@ Only add these fields if explicitly mentioned:
     return parsed;
 };
 
-// LOCAL PREFILTER (more lenient)
+// LOCAL PREFILTER
 const localPreFilter = (recipes, analysis) => {
     const { nutritional_constraints, time_constraints, general_criteria } = analysis || {};
 
-    // If no constraints, don't filter
     if (!nutritional_constraints && !time_constraints && !general_criteria) return recipes;
 
     const keywords = [
@@ -276,13 +281,11 @@ const localPreFilter = (recipes, analysis) => {
     ].filter(Boolean).map(k => k.toLowerCase());
 
     return recipes.filter(recipe => {
-        // Time constraint (hard filter)
         if (time_constraints?.max_total_minutes) {
             const time = recipe.totalTime || recipe.readyInMinutes || 0;
             if (time && time > time_constraints.max_total_minutes) return false;
         }
 
-        // Excluded ingredients (hard filter)
         const ingredientsText = (recipe.ingredients || []).map(ing =>
             (typeof ing === 'object' && ing !== null ? (ing.name || ing.original || '') : ing) || ''
         ).join(' ').toLowerCase();
@@ -303,7 +306,6 @@ const localPreFilter = (recipes, analysis) => {
             return r.test(recipeText);
         })) return false;
 
-        // Nutrition constraints (soft - only filter if data exists and violates)
         if (nutritional_constraints && Object.keys(nutritional_constraints).length > 0) {
             const nutritionData = recipe.nutrition || recipe.nutritional_info || {};
             const hasNutritionData = typeof nutritionData === 'object' && Object.keys(nutritionData).length > 0;
@@ -352,14 +354,10 @@ const localPreFilter = (recipes, analysis) => {
             }
         }
 
-        // Keywords (SOFT MATCH - if ANY keyword matches, include it)
         if (keywords.length > 0) {
             const matches = keywords.some(k => recipeText.includes(k));
-            // Don't exclude if no match - let AI ranking handle it
             if (!matches) {
-                // Check for partial/fuzzy matches
                 const fuzzyMatch = keywords.some(k => {
-                    // Allow substring matches for longer keywords
                     if (k.length > 4) {
                         return recipeText.includes(k.slice(0, -1)) || recipeText.includes(k.slice(1));
                     }
@@ -449,14 +447,12 @@ Respond ONLY with JSON.
 
     if (!parsed || !Array.isArray(parsed.ranked_matches)) {
         console.error('Ranker AI returned invalid JSON:', aiResponse);
-        // Fallback: return original order
         return limited;
     }
 
     const rankedIndices = parsed.ranked_matches.map(n => Number(n)).filter(n => !isNaN(n) && n >= 1 && n <= limited.length);
     const rankedRecipes = rankedIndices.map(i => limited[i - 1]).filter(Boolean);
 
-    // If AI returned fewer recipes than available, append the rest
     const includedIds = new Set(rankedRecipes.map(r => r.id || r.recipeId));
     const remaining = limited.filter(r => !includedIds.has(r.id || r.recipeId));
 
@@ -486,7 +482,6 @@ export const filterRecipesByDescription = (recipes, description) => {
             const overallStart = performance.now();
 
             try {
-                // Check if query is simple - use keyword filter if so
                 if (!ENABLE_AI_FILTERING || isSimpleQuery(description)) {
                     console.log('Using simple keyword filter');
                     const results = simpleKeywordFilter(recipes, description);
@@ -498,7 +493,6 @@ export const filterRecipesByDescription = (recipes, description) => {
                     return resolve(results);
                 }
 
-                // Use AI filtering for complex queries
                 console.log('Using AI-powered filtering');
                 const analysis = await analyzeDescriptionWithAI(description);
                 console.log('Analysis:', JSON.stringify(analysis));
@@ -507,7 +501,6 @@ export const filterRecipesByDescription = (recipes, description) => {
                 console.log(`Pre-filter: ${preFiltered.length}/${recipes.length} candidates`);
 
                 if (preFiltered.length === 0) {
-                    // Fall back to simple filter if pre-filter excludes everything
                     console.log('Pre-filter too aggressive, falling back to keyword search');
                     const fallback = simpleKeywordFilter(recipes, description);
                     if (ENABLE_CACHE) filterCache.set(cacheKey, { results: fallback, timestamp: now() });
@@ -538,7 +531,6 @@ export const filterRecipesByDescription = (recipes, description) => {
     });
 };
 
-// Clear caches
 export const clearFilterCache = () => {
     filterCache.clear();
     console.log('Filter cache cleared');

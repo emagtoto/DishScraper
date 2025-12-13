@@ -1,9 +1,10 @@
 import axios from 'axios';
 
 // --- CONFIG ---
-const DEEPSEEK_API_URL = process.env.REACT_APP_DEEPSEEK_API_URL || '/.netlify/functions/deepseek';
+const DEEPSEEK_API_URL = process.env.REACT_APP_DEEPSEEK_API_URL;
 
-// ✅ Centralized DeepSeek Call
+
+// ✅ Centralized DeepSeek Call with robust response handling
 const callDeepSeek = async (messages, max_tokens = 2048, temperature = 0.3) => {
     try {
         const response = await axios.post(
@@ -16,15 +17,43 @@ const callDeepSeek = async (messages, max_tokens = 2048, temperature = 0.3) => {
                 response_format: { type: 'json_object' }
             },
             {
-                headers: {'Content-Type': 'application/json',
+                headers: {
+                    'Content-Type': 'application/json',
                 },
                 timeout: 45000
             }
         );
-        return { success: true, data: response.data.choices[0].message.content };
+
+        // ✅ Handle multiple possible response structures
+        let content = null;
+        
+        if (response.data?.choices?.[0]?.message?.content) {
+            content = response.data.choices[0].message.content;
+        } else if (response.data?.content) {
+            content = response.data.content;
+        } else if (response.data?.message?.content) {
+            content = response.data.message.content;
+        } else if (typeof response.data === 'string') {
+            content = response.data;
+        } else if (response.data?.data?.choices?.[0]?.message?.content) {
+            content = response.data.data.choices[0].message.content;
+        } else {
+            console.error('❌ Unexpected API response structure:', response.data);
+            throw new Error('API returned unexpected response structure');
+        }
+
+        if (!content) {
+            throw new Error('API returned empty content');
+        }
+
+        return { success: true, data: content };
+
     } catch (error) {
         console.error("❌ DeepSeek API Error:", error.response ? error.response.data : error.message);
-        const errorMessage = error.response?.data?.error?.message || "AI service error.";
+        const errorMessage = error.response?.data?.error?.message || 
+                           error.response?.data?.message ||
+                           error.message ||
+                           "AI service error.";
         return { success: false, error: errorMessage };
     }
 };
