@@ -1,4 +1,4 @@
-// apiService.js - OPTIMIZED: Better recipe prioritization by ingredient matching
+// apiService.js - ABSOLUTE FILTER SYSTEM: Zero-tolerance validation with comprehensive compliance
 import axios from 'axios';
 
 const BASE_URL = 'https://spoonacular-recipe-food-nutrition-v1.p.rapidapi.com/recipes';
@@ -231,7 +231,8 @@ export const getRecipeDetails = async (recipeId) => {
       fat_g: nutritionData.find(n => n.name === 'Fat')?.amount || 0,
       fiber_g: nutritionData.find(n => n.name === 'Fiber')?.amount || 0,
       sugar_g: nutritionData.find(n => n.name === 'Sugar')?.amount || 0,
-      sodium_mg: nutritionData.find(n => n.name === 'Sodium')?.amount || 0
+      sodium_mg: nutritionData.find(n => n.name === 'Sodium')?.amount || 0,
+      alcohol: nutritionData.find(n => n.name === 'Alcohol')?.amount || 0
     };
 
     return {
@@ -256,32 +257,98 @@ export const getRecipeDetails = async (recipeId) => {
 
 const normalizeIngredient = (ingredient) => ingredient.toLowerCase().trim();
 
-// Reliable ingredient matching without false positives
 const ingredientMatches = (searchIngredient, recipeIngredient) => {
   const normalized = normalizeIngredient(searchIngredient);
   const recipeNormalized = normalizeIngredient(recipeIngredient);
 
-  // Direct substring match for phrases (e.g., "chicken breast")
   if (normalized.includes(' ')) {
     if (recipeNormalized.includes(normalized)) return true;
   } else {
-    // Single-word match using word boundaries
     const escapedWord = normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(`\\b${escapedWord}\\b`, 'i');
     if (regex.test(recipeNormalized)) return true;
   }
 
-  // Exclude certain seasoning forms only (these don't count as actual ingredients)
   const seasoningWords = ['powder', 'extract', 'essence', 'flavoring'];
   for (const seasoning of seasoningWords) {
     if (recipeNormalized.includes(`${normalized} ${seasoning}`)) return false;
   }
 
-  // Default to false - only match if explicitly found
   return false;
 };
 
-// ENHANCED: Calculate ingredient match percentage reliably
+// ✅ ABSOLUTE: Comprehensive alcohol detection in ingredients
+const containsAlcohol = (ingredients) => {
+  if (!ingredients || !Array.isArray(ingredients)) return false;
+
+  const alcoholKeywords = [
+    // Wines
+    'wine', 'red wine', 'white wine', 'cooking wine', 'rice wine', 'sherry', 'marsala',
+    'mirin', 'shaoxing', 'vermouth', 'port', 'madeira', 'shao hsing',
+    // Beers & Ales
+    'beer', 'ale', 'lager', 'stout', 'porter', 'pilsner',
+    // Spirits
+    'vodka', 'rum', 'whiskey', 'whisky', 'bourbon', 'scotch', 'rye',
+    'tequila', 'gin', 'sake', 'soju', 'shochu',
+    'cognac', 'brandy', 'armagnac', 'grappa', 'ouzo', 'absinthe',
+    // Champagne & Sparkling
+    'champagne', 'prosecco', 'sparkling wine', 'cava', 'asti',
+    // Liqueurs
+    'liqueur', 'amaretto', 'baileys', 'kahlua', 'cointreau', 'triple sec',
+    'grand marnier', 'frangelico', 'sambuca', 'limoncello', 'schnapps',
+    'chartreuse', 'drambuie', 'campari', 'aperol', 'pernod',
+    // General terms
+    'spirits', 'alcohol', 'alcoholic', 'fortified wine',
+    // Asian spirits
+    'soju', 'baijiu', 'awamori', 'makgeolli'
+  ];
+
+  return ingredients.some(ing => {
+    const normalized = ing.toLowerCase().trim();
+    
+    // Check for exact alcohol keywords with word boundaries
+    const hasAlcohol = alcoholKeywords.some(alcohol => {
+      const escapedAlcohol = alcohol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`\\b${escapedAlcohol}\\b`, 'i');
+      return regex.test(normalized);
+    });
+
+    if (hasAlcohol) {
+      console.log(`🚫 ABSOLUTE FILTER: Alcohol detected in ingredient: "${ing}"`);
+      return true;
+    }
+
+    return false;
+  });
+};
+
+// ✅ ABSOLUTE: Enhanced ingredient exclusion checking with zero tolerance
+const containsExcludedIngredients = (recipeIngredients, excludeList) => {
+  if (!excludeList || excludeList.length === 0) return false;
+  if (!recipeIngredients || !Array.isArray(recipeIngredients)) return false;
+
+  for (const excluded of excludeList) {
+    const hasExcluded = recipeIngredients.some(ing => {
+      const normalized = normalizeIngredient(ing);
+      const excludedNorm = normalizeIngredient(excluded);
+      
+      // Exact word boundary match to prevent false positives
+      const escapedExcluded = excludedNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`\\b${escapedExcluded}\\b`, 'i');
+      
+      if (regex.test(normalized)) {
+        console.log(`🚫 ABSOLUTE FILTER: Excluded ingredient "${excluded}" found in: "${ing}"`);
+        return true;
+      }
+      return false;
+    });
+
+    if (hasExcluded) return true;
+  }
+
+  return false;
+};
+
 const calculateIngredientMatchScore = (searchIngredients, recipeIngredients) => {
   if (!searchIngredients || searchIngredients.length === 0) return {
     count: 0,
@@ -305,14 +372,6 @@ const calculateIngredientMatchScore = (searchIngredients, recipeIngredients) => 
 
   const matchPercentage = (matchCount / searchIngredients.length) * 100;
 
-  console.log(` Match calculation for recipe:`, {
-    searchIngredients,
-    matchCount,
-    total: searchIngredients.length,
-    percentage: matchPercentage.toFixed(1),
-    matched: matchedIngredients
-  });
-
   return {
     count: matchCount,
     total: searchIngredients.length,
@@ -321,42 +380,34 @@ const calculateIngredientMatchScore = (searchIngredients, recipeIngredients) => 
   };
 };
 
-
-// NEW: Enhanced relevance scoring
 const calculateRelevanceScore = (recipe, searchIngredients, hasUsedIngredients = null) => {
   const ingredientMatch = calculateIngredientMatchScore(
     searchIngredients,
     recipe.ingredients || []
   );
 
-  // Base score from ingredient matching (0-100)
   let score = ingredientMatch.percentage;
 
-  // Boost for Spoonacular's usedIngredientCount if available
   if (hasUsedIngredients !== null) {
     const usedPercentage = (hasUsedIngredients / searchIngredients.length) * 100;
     score = Math.max(score, usedPercentage);
   }
 
-  // Bonus for recipes that use ALL searched ingredients
   if (ingredientMatch.count === searchIngredients.length) {
-    score += 20; // Perfect match bonus
+    score += 20;
   }
 
-  // Bonus for high percentage matches
   if (ingredientMatch.percentage >= 80) {
     score += 10;
   } else if (ingredientMatch.percentage >= 60) {
     score += 5;
   }
 
-  // Small bonus for having fewer total ingredients (simpler recipes)
   const totalIngredients = recipe.ingredients?.length || 0;
   if (totalIngredients > 0 && totalIngredients <= 10) {
     score += 5;
   }
 
-  // Bonus for shorter cooking time (convenience)
   if (recipe.readyInMinutes && recipe.readyInMinutes <= 30) {
     score += 5;
   } else if (recipe.readyInMinutes && recipe.readyInMinutes <= 45) {
@@ -364,16 +415,18 @@ const calculateRelevanceScore = (recipe, searchIngredients, hasUsedIngredients =
   }
 
   return {
-    score: Math.min(score, 150), // Cap at 150
+    score: Math.min(score, 150),
     ingredientMatch
   };
 };
 
+// ✅ ABSOLUTE: Enhanced filter mapping with comprehensive exclusions
 const mapFiltersToApiParams = (filters) => {
   const apiParams = {};
   const clientFilters = [];
   const intolerances = [];
   const diets = [];
+  const excludeIngredients = [];
 
   const dedupedFilters = Array.from(new Set((filters || []).map(f => String(f).toLowerCase().trim())));
 
@@ -409,11 +462,51 @@ const mapFiltersToApiParams = (filters) => {
     'diabetic-friendly': [
       { nutrient: 'sugar_g', max: 8 },
       { nutrient: 'carbs_g', max: 30 }
-    ]
+    ],
+    'alcohol-free': { nutrient: 'alcohol', max: 0 }
   };
 
   dedupedFilters.forEach(filter => {
     const normalized = filter.replace(/\s+/g, '-');
+
+    // ✅ ABSOLUTE: Added alcohol-free specially with comprehensive exclusions
+    if (normalized === 'alcohol-free') {
+      // Add to API params with ZERO tolerance
+      apiParams.maxAlcohol = 0;
+      
+      // COMPREHENSIVE: Exclude ALL alcoholic ingredients
+      excludeIngredients.push(
+        // Wines (all types)
+        'wine', 'red wine', 'white wine', 'cooking wine', 'rice wine', 
+        'sherry', 'marsala', 'mirin', 'shaoxing', 'vermouth', 'port', 
+        'madeira', 'shao hsing',
+        // Beers & ales
+        'beer', 'ale', 'lager', 'stout', 'porter', 'pilsner',
+        // Spirits (comprehensive list)
+        'vodka', 'rum', 'whiskey', 'whisky', 'bourbon', 'scotch', 'rye',
+        'tequila', 'gin', 'sake', 'soju', 'shochu',
+        'cognac', 'brandy', 'armagnac', 'grappa', 'ouzo', 'absinthe',
+        // Champagne & sparkling
+        'champagne', 'prosecco', 'sparkling wine', 'cava', 'asti',
+        // Liqueurs (comprehensive)
+        'liqueur', 'amaretto', 'baileys', 'kahlua', 'cointreau', 'triple sec',
+        'grand marnier', 'frangelico', 'sambuca', 'limoncello', 'schnapps',
+        'chartreuse', 'drambuie', 'campari', 'aperol', 'pernod',
+        // General/other
+        'spirits', 'fortified wine', 'baijiu', 'awamori', 'makgeolli'
+      );
+      
+      // Add to client filters for ABSOLUTE validation
+      clientFilters.push({ 
+        name: filter, 
+        type: 'alcohol-free',
+        nutrient: 'alcohol',
+        max: 0
+      });
+      
+      console.log('🚫 ABSOLUTE ALCOHOL-FREE MODE: maxAlcohol=0 + comprehensive ingredient exclusion + mandatory nutrition validation');
+      return;
+    }
 
     if (dietMap[normalized]) {
       diets.push(dietMap[normalized]);
@@ -436,26 +529,36 @@ const mapFiltersToApiParams = (filters) => {
   if (diets.length > 0) {
     if (diets.includes('vegan')) {
       apiParams.diet = 'vegan';
-      console.log(' Using vegan diet filter (most restrictive)');
+      console.log('🌱 Using vegan diet filter (most restrictive)');
     } else if (diets.includes('vegetarian')) {
       apiParams.diet = 'vegetarian';
-      console.log(' Using vegetarian diet filter');
+      console.log('🥗 Using vegetarian diet filter');
     } else {
       apiParams.diet = diets[0];
-      console.log(` Using ${diets[0]} diet filter`);
+      console.log(`🍽️ Using ${diets[0]} diet filter`);
     }
 
     diets.forEach(diet => {
       clientFilters.push({ name: diet, type: 'diet', value: diet });
     });
 
-    console.log(` Multiple diets detected: ${diets.join(', ')}`);
-    console.log(` Will validate ALL diets client-side for strict matching`);
+    console.log(`📋 Multiple diets detected: ${diets.join(', ')}`);
+    console.log(`✅ Will validate ALL diets client-side for strict matching`);
   }
 
   if (intolerances.length > 0) {
     apiParams.intolerances = intolerances.join(',');
-    console.log(` Applying intolerances: ${intolerances.join(', ')}`);
+    console.log(`⚠️ Applying intolerances: ${intolerances.join(', ')}`);
+  }
+
+  if (excludeIngredients.length > 0) {
+    apiParams.excludeIngredients = Array.from(new Set(excludeIngredients)).join(',');
+    console.log(`🚫 Excluding ingredients from API: ${apiParams.excludeIngredients}`);
+    
+    clientFilters.push({
+      type: 'exclude-ingredients',
+      excludeList: Array.from(new Set(excludeIngredients))
+    });
   }
 
   return { apiParams, clientFilters };
@@ -468,7 +571,8 @@ const nutrientNameMap = {
   'fat_g': 'Fat',
   'fiber_g': 'Fiber',
   'sugar_g': 'Sugar',
-  'sodium_mg': 'Sodium'
+  'sodium_mg': 'Sodium',
+  'alcohol': 'Alcohol'
 };
 
 const getNutritionValue = (recipe, nutrient) => {
@@ -495,6 +599,7 @@ const getNutritionValue = (recipe, nutrient) => {
   return null;
 };
 
+// ✅ ABSOLUTE: Zero-tolerance nutrition and diet filter validation
 const passesNutritionFilters = (recipe, clientFilters) => {
   if (!clientFilters || clientFilters.length === 0) return true;
 
@@ -502,35 +607,87 @@ const passesNutritionFilters = (recipe, clientFilters) => {
     ? recipe.tags.map(t => String(t).toLowerCase().replace(/[-\s]/g, ''))
     : [];
 
-  for (const filter of clientFilters) {
-    if (filter.type === 'diet') {
-      const dietNorm = filter.value.toLowerCase().replace(/[-\s]/g, '');
-      const hasDiet = recipeTags.includes(dietNorm);
-
-      if (!hasDiet) {
-        console.log(`❌ Recipe "${recipe.title}" rejected: missing diet tag "${filter.value}"`);
-        return false;
-      }
-      continue;
-    }
-
-    const value = getNutritionValue(recipe, filter.nutrient);
-
-    if (value === null) {
-      console.log(`❌ Recipe "${recipe.title}" rejected: ${filter.nutrient} data missing`);
+  // ✅ ABSOLUTE: Alcohol-free validation (ZERO TOLERANCE)
+  const needsAlcoholFree = clientFilters.some(f => 
+    f.type === 'alcohol-free' || f.name === 'alcohol-free'
+  );
+  
+  if (needsAlcoholFree) {
+    // STRICT CHECK 1: Scan ingredients for ANY alcohol
+    if (containsAlcohol(recipe.ingredients || [])) {
+      console.log(`❌ ABSOLUTE REJECT: Recipe "${recipe.title}" contains alcohol in ingredients`);
       return false;
     }
-
-    if (filter.max !== undefined && value > filter.max) {
-      console.log(`❌ Recipe "${recipe.title}" rejected: ${filter.nutrient}=${value} > max ${filter.max}`);
+    
+    // STRICT CHECK 2: Verify zero alcohol content in nutrition
+    const alcoholContent = getNutritionValue(recipe, 'alcohol');
+    if (alcoholContent !== null && alcoholContent > 0) {
+      console.log(`❌ ABSOLUTE REJECT: Recipe "${recipe.title}" has ${alcoholContent}g alcohol content`);
       return false;
     }
-    if (filter.min !== undefined && value < filter.min) {
-      console.log(`❌ Recipe "${recipe.title}" rejected: ${filter.nutrient}=${value} < min ${filter.min}`);
+    
+    // STRICT CHECK 3: Missing alcohol data = reject (can't verify it's truly 0)
+    if (alcoholContent === null) {
+      console.log(`❌ ABSOLUTE REJECT: Recipe "${recipe.title}" missing alcohol nutrition data (cannot verify zero alcohol)`);
       return false;
     }
   }
 
+  // ✅ ABSOLUTE: Ingredient exclusion validation (ZERO TOLERANCE)
+  const excludeFilter = clientFilters.find(f => f.type === 'exclude-ingredients');
+  if (excludeFilter && excludeFilter.excludeList) {
+    if (containsExcludedIngredients(recipe.ingredients || [], excludeFilter.excludeList)) {
+      console.log(`❌ ABSOLUTE REJECT: Recipe "${recipe.title}" contains excluded ingredients`);
+      return false;
+    }
+  }
+
+  // ✅ ABSOLUTE: Diet validation - ALL specified diets must be present
+  const dietFilters = clientFilters.filter(f => f.type === 'diet');
+  if (dietFilters.length > 0) {
+    for (const filter of dietFilters) {
+      const dietNorm = filter.value.toLowerCase().replace(/[-\s]/g, '');
+      const hasDiet = recipeTags.includes(dietNorm);
+
+      if (!hasDiet) {
+        console.log(`❌ ABSOLUTE REJECT: Recipe "${recipe.title}" missing required diet tag "${filter.value}"`);
+        return false;
+      }
+    }
+  }
+
+  // ✅ ABSOLUTE: Nutrition limits - STRICT boundary enforcement
+  for (const filter of clientFilters) {
+    // Skip non-nutrition filters (already handled above)
+    if (filter.type === 'exclude-ingredients' || filter.type === 'alcohol-free' || filter.type === 'diet') {
+      continue;
+    }
+
+    if (!filter.nutrient) continue;
+
+    const value = getNutritionValue(recipe, filter.nutrient);
+
+    // STRICT: Missing data = automatic rejection (can't verify compliance)
+    if (value === null) {
+      console.log(`❌ ABSOLUTE REJECT: Recipe "${recipe.title}" missing ${filter.nutrient} data (cannot verify filter compliance)`);
+      return false;
+    }
+
+    // STRICT: Enforce maximum limits with zero tolerance
+    if (filter.max !== undefined && value > filter.max) {
+      console.log(`❌ ABSOLUTE REJECT: Recipe "${recipe.title}" exceeds limit: ${filter.nutrient}=${value}g > max ${filter.max}g`);
+      return false;
+    }
+    
+    // STRICT: Enforce minimum limits with zero tolerance
+    if (filter.min !== undefined && value < filter.min) {
+      console.log(`❌ ABSOLUTE REJECT: Recipe "${recipe.title}" below minimum: ${filter.nutrient}=${value}g < min ${filter.min}g`);
+      return false;
+    }
+  }
+
+  // Only recipes that pass ALL filters with 100% compliance reach here
+  console.log(`✅ ABSOLUTE PASS: Recipe "${recipe.title}" meets ALL filter requirements`);
   return true;
 };
 
@@ -544,7 +701,8 @@ const extractRecipeFromSearchResult = (recipe) => {
     fat_g: nutritionData.find(n => n.name === 'Fat')?.amount || 0,
     fiber_g: nutritionData.find(n => n.name === 'Fiber')?.amount || 0,
     sugar_g: nutritionData.find(n => n.name === 'Sugar')?.amount || 0,
-    sodium_mg: nutritionData.find(n => n.name === 'Sodium')?.amount || 0
+    sodium_mg: nutritionData.find(n => n.name === 'Sodium')?.amount || 0,
+    alcohol: nutritionData.find(n => n.name === 'Alcohol')?.amount || 0
   };
 
   return {
@@ -581,25 +739,29 @@ export const complexRecipeSearch = async (
     const { apiParams, clientFilters } = mapFiltersToApiParams(filters);
     const hasNutritionFilters = clientFilters.some(f => f.nutrient);
     const hasDietFilters = clientFilters.some(f => f.type === 'diet');
+    const hasAlcoholFree = clientFilters.some(f => f.type === 'alcohol-free');
 
     const startTime = Date.now();
-    console.log(`🔎 Starting OPTIMIZED search for up to ${maxResults} recipes...`);
+    console.log(`🔎 Starting ABSOLUTE FILTER search for up to ${maxResults} recipes...`);
     console.log(`📊 Current Rate Limits:`, {
       requests: `${rateLimitInfo.requestsRemaining}/${rateLimitInfo.requestsLimit}`,
       tinyrequests: `${rateLimitInfo.tinyrequestsRemaining}/${rateLimitInfo.tinyrequestsLimit}`,
     });
 
-    if (hasNutritionFilters || hasDietFilters) {
-      console.log(`🔬 Multi-filter validation active - targeting ${CONFIG.TARGET_VALIDATED_RECIPES} validated recipes`);
-      console.log('📋 Active filters:', clientFilters.map(f =>
-        f.type === 'diet'
-          ? `DIET: ${f.value}`
-          : `${f.name}: ${f.nutrient} ${f.max ? `≤${f.max}` : ''}${f.min ? `≥${f.min}` : ''}`
-      ));
+    if (hasNutritionFilters || hasDietFilters || hasAlcoholFree) {
+      console.log(`🔬 ABSOLUTE FILTER MODE - Zero-tolerance validation active`);
+      console.log(`🎯 Targeting ${CONFIG.TARGET_VALIDATED_RECIPES} recipes that pass ALL filters with 100% compliance`);
+      console.log('📋 Active filters:', clientFilters.map(f => {
+        if (f.type === 'diet') return `✅ DIET: ${f.value} (REQUIRED TAG)`;
+        if (f.type === 'alcohol-free') return `🚫 ALCOHOL-FREE: 0g alcohol + comprehensive ingredient scan + nutrition verification REQUIRED`;
+        if (f.type === 'exclude-ingredients') return `🚫 EXCLUDE: ${f.excludeList.length} ingredients (ZERO TOLERANCE)`;
+        return `📊 ${f.name}: ${f.nutrient} ${f.max ? `≤${f.max}` : ''}${f.min ? `≥${f.min}` : ''} (STRICT LIMIT + data REQUIRED)`;
+      }));
+      console.log('⚠️  Missing nutrition data = AUTOMATIC REJECTION (cannot verify compliance)');
     }
 
     const batchSize = CONFIG.BATCH_SIZE;
-    const targetRecipes = hasNutritionFilters || hasDietFilters
+    const targetRecipes = hasNutritionFilters || hasDietFilters || hasAlcoholFree
       ? Math.min(maxResults, CONFIG.MAX_RECIPES_NO_FILTERS)
       : Math.min(maxResults, CONFIG.MAX_RECIPES_NO_FILTERS);
     const numBatches = Math.ceil(targetRecipes / batchSize);
@@ -607,7 +769,7 @@ export const complexRecipeSearch = async (
     let allValidatedRecipes = [];
     let processedIds = new Set();
 
-    console.log(` OPTIMIZATION: Using complexSearch with full data (no separate detail calls!)`);
+    console.log(`⚡ OPTIMIZATION: Using complexSearch with full data (no separate detail calls!)`);
 
     for (let batch = 0; batch < numBatches; batch++) {
       const params = {
@@ -621,22 +783,22 @@ export const complexRecipeSearch = async (
         instructionsRequired: false,
         ranking: 2,
         ignorePantry: true,
-        sort: 'max-used-ingredients', // API sorts by ingredient match
+        sort: 'max-used-ingredients',
         ...apiParams
       };
 
-      console.log(` Batch ${batch + 1}/${numBatches} (offset: ${params.offset})...`);
+      console.log(`📦 Batch ${batch + 1}/${numBatches} (offset: ${params.offset})...`);
 
       try {
         const response = await makeApiRequest(`${BASE_URL}/complexSearch`, params);
         apiPointsUsed++;
 
         if (!response.data.results || response.data.results.length === 0) {
-          console.log(` Batch ${batch + 1}: No more results from API`);
+          console.log(`🔭 Batch ${batch + 1}: No more results from API`);
           break;
         }
 
-        console.log(`✔ Batch ${batch + 1}: ${response.data.results.length} recipes received WITH FULL DATA`);
+        console.log(`✓ Batch ${batch + 1}: ${response.data.results.length} recipes received WITH FULL DATA`);
 
         const recipesToProcess = response.data.results.filter(recipe => !processedIds.has(recipe.id));
 
@@ -647,7 +809,6 @@ export const complexRecipeSearch = async (
 
           const extractedRecipe = extractRecipeFromSearchResult(recipe);
 
-          // Calculate advanced relevance score
           const relevance = calculateRelevanceScore(
             extractedRecipe,
             ingredients,
@@ -660,7 +821,6 @@ export const complexRecipeSearch = async (
             matchPercentage: relevance.ingredientMatch.percentage,
             matchedIngredientsList: relevance.ingredientMatch.matched,
             relevanceScore: relevance.score,
-            // FIX: Store match data in a consistent format that can be restored later
             _originalMatchData: {
               matchingIngredients: relevance.ingredientMatch.count,
               matchPercentage: relevance.ingredientMatch.percentage,
@@ -669,19 +829,21 @@ export const complexRecipeSearch = async (
             }
           };
 
-          console.log(` Recipe "${recipeWithScores.title}": ${recipeWithScores.matchingIngredients}/${ingredients.length} ingredients matched (${Math.round(recipeWithScores.matchPercentage)}%)`);
+          console.log(`🔍 Recipe "${recipeWithScores.title}": ${recipeWithScores.matchingIngredients}/${ingredients.length} ingredients matched (${Math.round(recipeWithScores.matchPercentage)}%)`);
           console.log(`   Matched ingredients: ${recipeWithScores.matchedIngredientsList.join(', ')}`);
 
-          // Apply filters
           if (clientFilters.length > 0) {
             if (passesNutritionFilters(recipeWithScores, clientFilters)) {
-              console.log(` VALIDATED: "${recipeWithScores.title}" (${recipeWithScores.matchingIngredients}/${ingredients.length} ingredients, ${Math.round(recipeWithScores.matchPercentage)}% match, score: ${Math.round(recipeWithScores.relevanceScore)})`);
+              console.log(`✅ ABSOLUTE VALIDATION PASSED: "${recipeWithScores.title}"`);
+              console.log(`   ├─ Ingredients: ${recipeWithScores.matchingIngredients}/${ingredients.length} matched (${Math.round(recipeWithScores.matchPercentage)}%)`);
+              console.log(`   ├─ Relevance Score: ${Math.round(recipeWithScores.relevanceScore)}/150`);
+              console.log(`   └─ Status: ALL FILTERS MET WITH 100% COMPLIANCE`);
               validatedBatch.push(recipeWithScores);
             } else {
-              console.log(` REJECTED (failed filter): "${recipeWithScores.title}"`);
+              console.log(`❌ ABSOLUTE REJECTION: "${recipeWithScores.title}" failed one or more filters (see detailed logs above)`);
             }
           } else {
-            console.log(` ADDED: "${recipeWithScores.title}" (${recipeWithScores.matchingIngredients}/${ingredients.length} ingredients, ${Math.round(recipeWithScores.matchPercentage)}% match, score: ${Math.round(recipeWithScores.relevanceScore)})`);
+            console.log(`✅ ADDED: "${recipeWithScores.title}" (${recipeWithScores.matchingIngredients}/${ingredients.length} ingredients, ${Math.round(recipeWithScores.matchPercentage)}% match, score: ${Math.round(recipeWithScores.relevanceScore)})`);
             validatedBatch.push(recipeWithScores);
           }
         }
@@ -693,16 +855,16 @@ export const complexRecipeSearch = async (
             onProgressUpdate([...allValidatedRecipes]);
           }
 
-          console.log(` Batch complete: ${validatedBatch.length} recipes (0 extra API calls!)`);
+          console.log(`📦 Batch complete: ${validatedBatch.length} recipes (0 extra API calls!)`);
         }
 
-        if ((hasNutritionFilters || hasDietFilters) && allValidatedRecipes.length >= CONFIG.TARGET_VALIDATED_RECIPES) {
-          console.log(` Reached ${CONFIG.TARGET_VALIDATED_RECIPES} validated recipes, stopping search`);
+        if ((hasNutritionFilters || hasDietFilters || hasAlcoholFree) && allValidatedRecipes.length >= CONFIG.TARGET_VALIDATED_RECIPES) {
+          console.log(`🎯 Reached ${CONFIG.TARGET_VALIDATED_RECIPES} validated recipes, stopping search`);
           break;
         }
 
-        if (!hasNutritionFilters && !hasDietFilters && allValidatedRecipes.length >= targetRecipes) {
-          console.log(` Reached target of ${targetRecipes} recipes, stopping fetch`);
+        if (!hasNutritionFilters && !hasDietFilters && !hasAlcoholFree && allValidatedRecipes.length >= targetRecipes) {
+          console.log(`🎯 Reached target of ${targetRecipes} recipes, stopping fetch`);
           break;
         }
 
@@ -710,36 +872,31 @@ export const complexRecipeSearch = async (
           await delay(CONFIG.BATCH_DELAY);
         }
       } catch (error) {
-        console.error(` Batch ${batch + 1} failed:`, error.message);
+        console.error(`❌ Batch ${batch + 1} failed:`, error.message);
         break;
       }
     }
 
     // ENHANCED SORTING: Prioritize by relevance score, then ingredient match count
     allValidatedRecipes.sort((a, b) => {
-      // Primary sort: Relevance score (highest first)
       if (Math.abs(b.relevanceScore - a.relevanceScore) > 5) {
         return b.relevanceScore - a.relevanceScore;
       }
 
-      // Secondary sort: Match percentage
       if (Math.abs(b.matchPercentage - a.matchPercentage) > 10) {
         return b.matchPercentage - a.matchPercentage;
       }
 
-      // Tertiary sort: Absolute number of matching ingredients
       if (b.matchingIngredients !== a.matchingIngredients) {
         return b.matchingIngredients - a.matchingIngredients;
       }
 
-      // Final tiebreaker: Cooking time (shorter is better)
       const timeA = a.readyInMinutes || 999;
       const timeB = b.readyInMinutes || 999;
       return timeA - timeB;
     });
 
-    // Log top results for debugging
-    console.log('\n TOP 5 RECIPES BY RELEVANCE:');
+    console.log('\n🏆 TOP 5 RECIPES BY RELEVANCE:');
     allValidatedRecipes.slice(0, 5).forEach((recipe, idx) => {
       console.log(`${idx + 1}. "${recipe.title}"`);
       console.log(`   - Relevance Score: ${Math.round(recipe.relevanceScore)}/150`);
@@ -756,27 +913,28 @@ export const complexRecipeSearch = async (
     const duration = ((endTime - startTime) / 1000).toFixed(2);
 
     console.log(`\n${'='.repeat(60)}`);
-    console.log(` OPTIMIZED SEARCH COMPLETE`);
+    console.log(`✨ ABSOLUTE FILTER SEARCH COMPLETE`);
     console.log(`${'='.repeat(60)}`);
-    console.log(` Results: ${allValidatedRecipes.length} validated recipes with ALL data`);
-    if (hasNutritionFilters || hasDietFilters) {
-      console.log(` All recipes passed strict multi-filter validation`);
+    console.log(`📊 Results: ${allValidatedRecipes.length} recipes with 100% FILTER COMPLIANCE`);
+    if (hasNutritionFilters || hasDietFilters || hasAlcoholFree) {
+      console.log(`✅ GUARANTEED: Every recipe passed ALL filters with absolute validation`);
+      console.log(`🚫 ZERO TOLERANCE: Missing data = rejected, any violation = rejected`);
     }
-    console.log(` Sorted by: Relevance Score → Match % → Ingredient Count → Cook Time`);
-    console.log(` API Cost: ${apiPointsUsed} points (${numBatches} batch calls only!)`);
-    console.log(` Efficiency: ${(allValidatedRecipes.length / apiPointsUsed).toFixed(1)} recipes per point`);
-    console.log(` SAVINGS: ${allValidatedRecipes.length} recipes with 0 individual detail calls!`);
-    console.log(` Duration: ${duration}s`);
-    console.log(` Remaining: ${rateLimitInfo.requestsRemaining || 'Unknown'} requests`);
+    console.log(`🔢 Sorted by: Relevance Score → Match % → Ingredient Count → Cook Time`);
+    console.log(`💰 API Cost: ${apiPointsUsed} points (${numBatches} batch calls only!)`);
+    console.log(`⚡ Efficiency: ${(allValidatedRecipes.length / apiPointsUsed).toFixed(1)} validated recipes per point`);
+    console.log(`💎 SAVINGS: ${allValidatedRecipes.length} recipes with 0 individual detail calls!`);
+    console.log(`⏱️ Duration: ${duration}s`);
+    console.log(`📈 Remaining: ${rateLimitInfo.requestsRemaining || 'Unknown'} requests`);
     if (rateLimitInfo.resetTime) {
       const resetDate = new Date(parseInt(rateLimitInfo.resetTime) * 1000);
-      console.log(` Resets: ${resetDate.toLocaleString()}`);
+      console.log(`🔄 Resets: ${resetDate.toLocaleString()}`);
     }
     console.log(`${'='.repeat(60)}\n`);
 
     return { success: true, data: allValidatedRecipes, apiPointsUsed };
   } catch (error) {
-    console.error('Search error:', error);
+    console.error('❌ Search error:', error);
     return {
       success: false,
       error: error.message || 'Failed to search recipes'
@@ -786,15 +944,15 @@ export const complexRecipeSearch = async (
 
 export { ingredientMatches, getRateLimitInfo, calculateIngredientMatchScore, calculateRelevanceScore };
 
-//  NEW: Helper to preserve match counts after filtering
 export const preserveMatchCounts = (recipes) => {
   return recipes.map(recipe => {
     if (recipe._originalMatchData) {
       return {
         ...recipe,
-        matchingIngredients: recipe._originalMatchData.count,
-        matchPercentage: recipe._originalMatchData.percentage,
-        matchedIngredientsList: recipe._originalMatchData.matched
+        matchingIngredients: recipe._originalMatchData.matchingIngredients,
+        matchPercentage: recipe._originalMatchData.matchPercentage,
+        matchedIngredientsList: recipe._originalMatchData.matchedIngredientsList,
+        relevanceScore: recipe._originalMatchData.relevanceScore
       };
     }
     return recipe;
@@ -808,7 +966,9 @@ const apiService = {
   getRateLimitInfo,
   calculateIngredientMatchScore,
   calculateRelevanceScore,
-  preserveMatchCounts
+  preserveMatchCounts,
+  containsAlcohol,
+  containsExcludedIngredients
 };
 
 export default apiService;

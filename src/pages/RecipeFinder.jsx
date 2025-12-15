@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import IngredientSelector from "../components/IngredientSelector";
 import DietaryFilter from "../components/DietaryFilter";
 import DescriptionBox from "../components/DescriptionBox";
@@ -736,27 +736,6 @@ const RecipeFinder = () => {
               <p className="text-orange-100 text-sm sm:text-base mb-4 max-w-md">
                 Your intelligent recipe discovery platform. Find, save, and explore thousands of recipes tailored to your ingredients and preferences.
               </p>
-            </div>
-
-            <div>
-              <h3 className="font-bold text-base sm:text-lg mb-3 sm:mb-4">Quick Links</h3>
-              <ul className="space-y-2 text-sm sm:text-base text-orange-100">
-                <li>
-                  <Link to="/" className="hover:text-white transition-colors flex items-center gap-2">
-                    → Home
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/saved" className="hover:text-white transition-colors flex items-center gap-2">
-                    → Saved Recipes
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/history" className="hover:text-white transition-colors flex items-center gap-2">
-                    → Search History
-                  </Link>
-                </li>
-              </ul>
             </div>
 
             <div>

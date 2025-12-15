@@ -175,10 +175,34 @@ export default function RecipeModal({ recipe, onClose, onAuthRequired }) {
                     </div>
                   )}
                   {displayRecipe.source && (
-                    <div className="bg-gradient-to-r from-orange-500 to-orange-600 backdrop-blur-md px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-lg border border-orange-400 text-white">
-                      <Flame className="w-3 h-3 sm:w-4 sm:h-4" />
-                      <span className="text-white">{displayRecipe.source}</span>
-                    </div>
+                    displayRecipe.sourceUrl ? (
+                      <a
+                        href={displayRecipe.sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          console.log('Mouse down on URL:', displayRecipe.sourceUrl);
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          console.log('Clicking URL:', displayRecipe.sourceUrl);
+                          // Force open in new tab if default behavior fails
+                          window.open(displayRecipe.sourceUrl, '_blank', 'noopener,noreferrer');
+                        }}
+                        style={{ pointerEvents: 'auto', zIndex: 10, position: 'relative' }}
+                        className="bg-gradient-to-r from-orange-500 to-orange-600 backdrop-blur-md px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold inline-flex items-center gap-2 shadow-lg border border-orange-400 text-white hover:from-orange-600 hover:to-orange-700 transition-all cursor-pointer no-underline"
+                      >
+                        <Flame className="w-3 h-3 sm:w-4 sm:h-4" />
+                        <span className="text-white">{displayRecipe.source}</span>
+                        <ExternalLink className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                      </a>
+                    ) : (
+                      <div className="bg-gradient-to-r from-orange-500 to-orange-600 backdrop-blur-md px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-lg border border-orange-400 text-white">
+                        <Flame className="w-3 h-3 sm:w-4 sm:h-4" />
+                        <span className="text-white">{displayRecipe.source}</span>
+                      </div>
+                    )
                   )}
                 </div>
               </div>
