@@ -39,12 +39,12 @@ export default function RecipeModal({ recipe, onClose, onAuthRequired }) {
       setModifiedRecipe({
         ...displayRecipe,
         ...result.data,
-        id: `${displayRecipe.id}-modified-${Date.now()}`, 
+        id: `${displayRecipe.id}-modified-${Date.now()}`,
         source: "AI Modified"
       });
     } else {
       console.error(`Sorry, I couldn't modify the recipe. Error: ${result.error}`);
-      alert(`Sorry, I couldn't modify the recipe. Error: ${result.error}`); 
+      alert(`Sorry, I couldn't modify the recipe. Error: ${result.error}`);
     }
 
     setIsModifying(false);
@@ -115,7 +115,7 @@ export default function RecipeModal({ recipe, onClose, onAuthRequired }) {
 
   const getNutritionItems = () => {
     if (!displayRecipe.nutritional_info) return [];
-    
+
     const info = displayRecipe.nutritional_info;
     const items = [];
 
@@ -174,36 +174,31 @@ export default function RecipeModal({ recipe, onClose, onAuthRequired }) {
                       <span className="text-gray-900">{displayRecipe.servings} servings</span>
                     </div>
                   )}
-                  {displayRecipe.source && (
-                    displayRecipe.sourceUrl ? (
-                      <a
-                        href={displayRecipe.sourceUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          console.log('Mouse down on URL:', displayRecipe.sourceUrl);
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          console.log('Clicking URL:', displayRecipe.sourceUrl);
-                          // Force open in new tab if default behavior fails
-                          window.open(displayRecipe.sourceUrl, '_blank', 'noopener,noreferrer');
-                        }}
-                        style={{ pointerEvents: 'auto', zIndex: 10, position: 'relative' }}
-                        className="bg-gradient-to-r from-orange-500 to-orange-600 backdrop-blur-md px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold inline-flex items-center gap-2 shadow-lg border border-orange-400 text-white hover:from-orange-600 hover:to-orange-700 transition-all cursor-pointer no-underline"
-                      >
-                        <Flame className="w-3 h-3 sm:w-4 sm:h-4" />
-                        <span className="text-white">{displayRecipe.source}</span>
-                        <ExternalLink className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                      </a>
-                    ) : (
-                      <div className="bg-gradient-to-r from-orange-500 to-orange-600 backdrop-blur-md px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-lg border border-orange-400 text-white">
-                        <Flame className="w-3 h-3 sm:w-4 sm:h-4" />
-                        <span className="text-white">{displayRecipe.source}</span>
-                      </div>
-                    )
-                  )}
+                  {displayRecipe.sourceUrl ? (
+                    <a
+                      href={displayRecipe.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="bg-gradient-to-r from-orange-500 to-orange-600 backdrop-blur-md
+               px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm
+               font-bold inline-flex items-center gap-2 shadow-lg
+               border border-orange-400 text-white hover:from-orange-600
+               hover:to-orange-700 transition-all cursor-pointer no-underline"
+                    >
+                      <Flame className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <span>{displayRecipe.source || "View Source"}</span>
+                      <ExternalLink className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                    </a>
+                  ) : displayRecipe.source ? (
+                    <div className="bg-gradient-to-r from-orange-500 to-orange-600 backdrop-blur-md
+                  px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm
+                  font-bold flex items-center gap-2 shadow-lg
+                  border border-orange-400 text-white">
+                      <Flame className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <span>{displayRecipe.source}</span>
+                    </div>
+                  ) : null}
                 </div>
               </div>
               <button onClick={onClose} className="absolute top-4 right-4 p-2 sm:p-3 bg-white/95 backdrop-blur-md hover:bg-white rounded-full transition-all duration-200 shadow-xl border border-white/20 group">
@@ -407,13 +402,12 @@ export default function RecipeModal({ recipe, onClose, onAuthRequired }) {
                 <button
                   onClick={isSaved ? initiateRemove : handleSaveRecipe}
                   disabled={isSaving || isRemoving}
-                  className={`px-6 sm:px-8 py-2.5 sm:py-3.5 rounded-xl font-bold text-sm sm:text-base transition-all duration-200 shadow-lg flex items-center gap-2 ${
-                    isSaving || isRemoving
-                      ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                      : isSaved
+                  className={`px-6 sm:px-8 py-2.5 sm:py-3.5 rounded-xl font-bold text-sm sm:text-base transition-all duration-200 shadow-lg flex items-center gap-2 ${isSaving || isRemoving
+                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                    : isSaved
                       ? 'bg-gray-200 text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-2 hover:border-red-200'
                       : 'bg-white text-orange-600 border-2 border-orange-500 hover:bg-orange-50'
-                  }`}
+                    }`}
                 >
                   {isSaving ? (
                     <>
